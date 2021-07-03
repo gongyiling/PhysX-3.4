@@ -39,7 +39,8 @@
 #include <ctype.h>
 
 #include "PxPhysicsAPI.h"
-
+#include "PsMathUtils.h"
+#include "foundation/PxMath.h"
 #include "vehicle/PxVehicleUtil.h"
 #include "../SnippetVehicleCommon/SnippetVehicleSceneQuery.h"
 #include "../SnippetVehicleCommon/SnippetVehicleFilterShader.h"
@@ -444,6 +445,27 @@ void incrementDrivingMode(const PxF32 timestep)
 	}
 }
 
+struct AntiRoll
+{
+	void antiRoll(PxF32 timeStep, PxF32 steerAngle)
+	{
+		PxVehicleDrive4W* v = gVehicle4W;
+		const PxVehicleWheelsSimData& WheelsSimData = v->mWheelsSimData;
+		const PxF32 wheelBase = (WheelsSimData.getWheelCentreOffset(PxVehicleDrive4WWheelOrder::eFRONT_LEFT) - WheelsSimData.getWheelCentreOffset(PxVehicleDrive4WWheelOrder::eREAR_LEFT)).magnitude();
+		const PxF32 steerRad = shdfnd::degToRad(steerAngle);
+		const PxF32 r = (wheelBase / 2.0f) / (PxSin(steerRad / 2.0f));
+		const PxRigidDynamic* rigidDynamic = v->getRigidDynamicActor();
+		const PxF32 u = rigidDynamic->getLinearVelocity().magnitude();
+		const PxF32 a = u * u / r;
+		const PxF32 g = gScene->getGravity().magnitude();
+		const PxF32 targetCamberAngle = PxAtan2(a, g);
+		const PxQuat rotation = rigidDynamic->getGlobalPose().q;
+	}
+
+};
+
+AntiRoll gAntiRoll;
+
 void stepPhysics()
 {
 	const PxF32 timestep = 1.0f/60.0f;
@@ -475,6 +497,9 @@ void stepPhysics()
 
 	//Work out if the vehicle is in the air.
 	gIsVehicleInAir = gVehicle4W->getRigidDynamicActor()->isSleeping() ? false : PxVehicleIsInAir(vehicleQueryResults[0]);
+	
+	PxF32 steerAngle = wheelQueryResults[0].steerAngle;
+	gAntiRoll.antiRoll(timestep, steerAngle);
 
 	//Scene update.
 	gScene->simulate(timestep);
