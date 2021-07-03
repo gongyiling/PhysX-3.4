@@ -3,21 +3,28 @@
 #include "extensions/PxConstraintExt.h"
 #include "PxConstraint.h"
 #include "vehicle/PxVehicleWheels.h"
+#include "vehicle/PxVehicleDrive4W.h"
+#include <memory>
 
 using namespace physx;
 
 class AntiRollContraints : public PxConstraintConnector
 {
 public:
-	AntiRollContraints(PxVehicleWheels* vehicle)
-		:mVehicle(vehicle)
+	AntiRollContraints(PxVehicleDrive4W* vehicle)
 	{
-
+		mAntiRollData.mVehicle = vehicle;
 	}
 	virtual void* prepareData() override
 	{
 		return &mAntiRollData;
 	}
+
+	struct ConstraintData
+	{
+		std::unique_ptr<AntiRollContraints> antiRoll;
+		PxConstraint* constraint;
+	};
 
 	static PxU32 antiRollConstraintSolverPrep(
 		Px1DConstraint* constraints,
@@ -27,6 +34,10 @@ public:
 		const void* constantBlock,
 		const PxTransform& bodyAToWorld,
 		const PxTransform& bodyBToWorld);
+
+	static ConstraintData createConstraint(PxVehicleDrive4W* v);
+
+	static PxConstraintShaderTable sShaders;
 
 	virtual bool updatePvdProperties(physx::pvdsdk::PvdDataStream& pvdConnection,
 		const PxConstraint* c,
@@ -61,9 +72,9 @@ public:
 	}
 	struct AntiRollData
 	{
+		PxVehicleDrive4W* mVehicle;
 		int dummy;
 	};
-	PxVehicleWheels* mVehicle = NULL;
 	AntiRollData mAntiRollData;
 };
 

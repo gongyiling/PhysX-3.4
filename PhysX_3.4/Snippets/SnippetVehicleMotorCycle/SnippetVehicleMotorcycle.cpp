@@ -50,6 +50,7 @@
 #include "../SnippetCommon/SnippetPrint.h"
 #include "../SnippetCommon/SnippetPVD.h"
 #include "../SnippetUtils/SnippetUtils.h"
+#include "AntiRollContraints.h"
 
 namespace physx
 {
@@ -327,6 +328,8 @@ void releaseAllControls()
 	}
 }
 
+AntiRollContraints::ConstraintData gConstraintData;
+
 void initPhysics()
 {
 	gFoundation = PxCreateFoundation(PX_FOUNDATION_VERSION, gAllocator, gErrorCallback);
@@ -379,6 +382,7 @@ void initPhysics()
 	PxTransform startTransform(PxVec3(0, (vehicleDesc.chassisDims.y*0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));
 	gVehicle4W->getRigidDynamicActor()->setGlobalPose(startTransform);
 	gScene->addActor(*gVehicle4W->getRigidDynamicActor());
+	gConstraintData = AntiRollContraints::createConstraint(gVehicle4W);
 
 	//Set the vehicle to rest in first gear.
 	//Set the vehicle to use auto-gears.
