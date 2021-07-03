@@ -462,7 +462,7 @@ struct AntiRoll
 		const PxF32 steerRad = -shdfnd::degToRad(steerAngle);
 		// motorcycle turn radius.
 		const PxF32 r = (wheelBase / 2.0f) / (PxSin(steerRad / 2.0f));
-		const PxRigidDynamic* rigidDynamic = v->getRigidDynamicActor();
+		PxRigidDynamic* rigidDynamic = v->getRigidDynamicActor();
 		// motorcycle velocity.
 		const PxF32 u = rigidDynamic->getLinearVelocity().magnitude();
 		// motorcycle acceleration around radius.
@@ -489,7 +489,8 @@ struct AntiRoll
 		static const PxF32 D = 10.0f;
 		const PxF32 Torque = CamberRadError * P + CamberRadErrorSpeed * D;
 		const PxVec3 Dir = rotation.rotate(gForward);
-		
+		rigidDynamic->addTorque(Torque * Dir, PxForceMode::eACCELERATION, true);
+		printf("Torque=%.5f\n", Torque);
 	}
 	PxF32 LastCamberRad = 0.0f;
 };
