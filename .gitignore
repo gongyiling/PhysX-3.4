@@ -10,3 +10,7 @@
 /PxShared/lib/vc15win64
 /PxShared/src/compiler/vc15win64/x64
 /.vs
+/PhysX_3.4/Snippets/compiler/vc15win64/.vs/Snippets/v16
+/PhysX_3.4/Snippets/compiler/vc15win64/x64
+*.user
+/PhysX_3.4/Snippets/lib/vc15win64
