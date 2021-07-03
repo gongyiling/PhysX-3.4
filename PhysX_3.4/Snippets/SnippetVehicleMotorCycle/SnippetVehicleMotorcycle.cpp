@@ -341,7 +341,7 @@ void initPhysics()
 	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
 	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
 	
-	PxU32 numWorkers = 1;
+	PxU32 numWorkers = 0;
 	gDispatcher = PxDefaultCpuDispatcherCreate(numWorkers);
 	sceneDesc.cpuDispatcher	= gDispatcher;
 	sceneDesc.filterShader	= VehicleFilterShader;
@@ -534,8 +534,9 @@ void stepPhysics()
 	gIsVehicleInAir = gVehicle4W->getRigidDynamicActor()->isSleeping() ? false : PxVehicleIsInAir(vehicleQueryResults[0]);
 	
 	PxF32 steerAngle = wheelQueryResults[0].steerAngle;
-	gAntiRoll.antiRoll(timestep, steerAngle);
-
+	//gAntiRoll.antiRoll(timestep, steerAngle);
+	gConstraintData.antiRoll->mAntiRollData.steerRad = steerAngle;
+	gConstraintData.constraint->markDirty();
 	//Scene update.
 	gScene->simulate(timestep);
 	gScene->fetchResults(true);

@@ -27,7 +27,7 @@ PxU32 AntiRollContraints::antiRollConstraintSolverPrep(Px1DConstraint* c,
 	const PxVehicleWheelsSimData& WheelsSimData = v->mWheelsSimData;
 	const PxF32 wheelBase = (WheelsSimData.getWheelCentreOffset(PxVehicleDrive4WWheelOrder::eFRONT_LEFT) - WheelsSimData.getWheelCentreOffset(PxVehicleDrive4WWheelOrder::eREAR_LEFT)).magnitude();
 	// turn left as positive position.
-	const PxF32 steerRad = -shdfnd::degToRad(30.0f);
+	const PxF32 steerRad = -data->steerRad;
 	// motorcycle turn radius.
 	const PxF32 r = (wheelBase / 2.0f) / (PxSin(steerRad / 2.0f));
 	PxRigidDynamic* rigidDynamic = v->getRigidDynamicActor();
@@ -44,12 +44,12 @@ PxU32 AntiRollContraints::antiRollConstraintSolverPrep(Px1DConstraint* c,
 	const PxVec3 left = rotation.rotate(-gRight);
 	const PxF32 dot = left.dot(gUp);
 	const PxF32 currentCamberRad = -PxAsin(dot);
-	
+	const PxVec3 Dir = rotation.rotate(gForward);
 	c->solveHint = PxU16(PxConstraintSolveHint::eNONE);
-	c->linear0 = PxVec3(0.f);		c->angular0 = left;
-	c->linear1 = PxVec3(0.f);		c->angular1 = left;
+	c->linear0 = PxVec3(0.f);		c->angular0 = Dir;
+	c->linear1 = PxVec3(0.f);		c->angular1 = Dir;
 	c->mods.spring.stiffness = 100;
-	c->mods.spring.damping = 0;
+	c->mods.spring.damping = 10;
 	c->flags = Px1DConstraintFlag::eSPRING | Px1DConstraintFlag::eACCELERATION_SPRING;
 
 	c->geometricError = targetCamberRad - currentCamberRad;

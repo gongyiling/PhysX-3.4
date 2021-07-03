@@ -73,7 +73,7 @@ public:
 	struct AntiRollData
 	{
 		PxVehicleDrive4W* mVehicle;
-		int dummy;
+		PxF32 steerRad;
 	};
 	AntiRollData mAntiRollData;
 };
