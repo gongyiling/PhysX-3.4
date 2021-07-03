@@ -254,7 +254,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\SnippetVehicleCommon\SnippetVehicle4WCreate.cpp">
+    <ClCompile Include="..\..\SnippetVehicleCommon\SnippetVehicleMotorcycleCreate.cpp">
     </ClCompile>
     <ClCompile Include="..\..\SnippetVehicleCommon\SnippetVehicleCreate.cpp">
     </ClCompile>
