@@ -45,13 +45,23 @@ PxU32 AntiRollContraints::antiRollConstraintSolverPrep(Px1DConstraint* c,
 	const PxF32 dot = left.dot(gUp);
 	const PxF32 currentCamberRad = -PxAsin(dot);
 	const PxVec3 Dir = rotation.rotate(gForward);
-	c->solveHint = PxU16(PxConstraintSolveHint::eNONE);
-	c->linear0 = PxVec3(0.f);		c->angular0 = Dir;
-	c->linear1 = PxVec3(0.f);		c->angular1 = Dir;
-	c->mods.spring.stiffness = 100;
-	c->mods.spring.damping = 10;
-	c->flags = Px1DConstraintFlag::eSPRING | Px1DConstraintFlag::eACCELERATION_SPRING;
-
+	const bool soft = false;
+	if (soft)
+	{
+		c->solveHint = PxU16(PxConstraintSolveHint::eNONE);
+		c->linear0 = PxVec3(0.f);		c->angular0 = Dir;
+		c->linear1 = PxVec3(0.f);		c->angular1 = Dir;
+		c->mods.spring.stiffness = 100;
+		c->mods.spring.damping = 10;
+		c->flags = Px1DConstraintFlag::eSPRING | Px1DConstraintFlag::eACCELERATION_SPRING;
+	}
+	else
+	{
+		c->solveHint = PxU16(PxConstraintSolveHint::eEQUALITY);
+		c->linear0 = PxVec3(0.f);		c->angular0 = Dir;
+		c->linear1 = PxVec3(0.f);		c->angular1 = Dir;
+		c->flags = 0;
+	}
 	c->geometricError = targetCamberRad - currentCamberRad;
     return 1;
 }
