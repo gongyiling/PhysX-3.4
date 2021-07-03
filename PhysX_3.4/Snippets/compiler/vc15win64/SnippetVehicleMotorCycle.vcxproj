@@ -248,6 +248,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\SnippetVehicleMotorCycle\AntiRollContraints.cpp" />
     <ClCompile Include="..\..\SnippetVehicleMotorCycle\SnippetVehicleMotorcycle.cpp">
     </ClCompile>
     <ClCompile Include="..\..\SnippetVehicleMotorCycle\SnippetVehicleMotorcycleRender.cpp">
@@ -280,6 +281,7 @@
     </ClInclude>
     <ClInclude Include="..\..\SnippetVehicleCommon\SnippetVehicleWheelQueryResult.h">
     </ClInclude>
+    <ClInclude Include="..\..\SnippetVehicleMotorCycle\AntiRollContraints.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="./SnippetUtils.vcxproj">
