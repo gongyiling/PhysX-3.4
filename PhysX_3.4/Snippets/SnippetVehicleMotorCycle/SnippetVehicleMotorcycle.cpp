@@ -51,6 +51,12 @@
 #include "../SnippetCommon/SnippetPVD.h"
 #include "../SnippetUtils/SnippetUtils.h"
 
+namespace physx
+{
+	extern PxVec3 gRight;
+	extern PxVec3 gUp;
+	extern PxVec3 gForward;
+}
 
 using namespace physx;
 using namespace snippetvehicle;
@@ -452,16 +458,40 @@ struct AntiRoll
 		PxVehicleDrive4W* v = gVehicle4W;
 		const PxVehicleWheelsSimData& WheelsSimData = v->mWheelsSimData;
 		const PxF32 wheelBase = (WheelsSimData.getWheelCentreOffset(PxVehicleDrive4WWheelOrder::eFRONT_LEFT) - WheelsSimData.getWheelCentreOffset(PxVehicleDrive4WWheelOrder::eREAR_LEFT)).magnitude();
-		const PxF32 steerRad = shdfnd::degToRad(steerAngle);
+		// turn left as positive position.
+		const PxF32 steerRad = -shdfnd::degToRad(steerAngle);
+		// motorcycle turn radius.
 		const PxF32 r = (wheelBase / 2.0f) / (PxSin(steerRad / 2.0f));
 		const PxRigidDynamic* rigidDynamic = v->getRigidDynamicActor();
+		// motorcycle velocity.
 		const PxF32 u = rigidDynamic->getLinearVelocity().magnitude();
+		// motorcycle acceleration around radius.
 		const PxF32 a = u * u / r;
 		const PxF32 g = gScene->getGravity().magnitude();
-		const PxF32 targetCamberAngle = PxAtan2(a, g);
-		const PxQuat rotation = rigidDynamic->getGlobalPose().q;
-	}
+		// target camber angle when motorcycle turn around radius.
+		const PxF32 targetCamberRad = PxAtan2(a, g);
 
+		const PxQuat rotation = rigidDynamic->getGlobalPose().q;
+		const PxVec3 left = rotation.rotate(-gRight);
+		const PxF32 dot = left.dot(gUp);
+		const PxF32 currentCamberRad = -PxAsin(dot);
+
+		// e0 = t0 - c0
+		// e1 = t1 - c1
+		// e1 - e0 = (t1 - t0) - (c1 - c0).
+		// since t1 == t0 hold for almost all time
+		// so e1 - e0 = -(c1 - c0), this change smoothly even if t change rapidly.
+		const PxF32 CamberRadError = targetCamberRad - currentCamberRad;
+		const PxF32 CamberRadErrorSpeed = -(currentCamberRad - LastCamberRad) / timeStep;
+		LastCamberRad = currentCamberRad;
+
+		static const PxF32 P = 1000.0f;
+		static const PxF32 D = 10.0f;
+		const PxF32 Torque = CamberRadError * P + CamberRadErrorSpeed * D;
+		const PxVec3 Dir = rotation.rotate(gForward);
+		
+	}
+	PxF32 LastCamberRad = 0.0f;
 };
 
 AntiRoll gAntiRoll;
