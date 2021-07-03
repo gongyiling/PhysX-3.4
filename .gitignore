@@ -3,3 +3,10 @@
 ################################################################################
 
 /PhysX_3.4/Bin/vc15win64
+/PhysX_3.4/Lib/vc15win64
+/PhysX_3.4/Source/compiler/vc15win64/.vs/PhysX/v16
+/PhysX_3.4/Source/compiler/vc15win64/x64
+/PxShared/bin/vc15win64
+/PxShared/lib/vc15win64
+/PxShared/src/compiler/vc15win64/x64
+/.vs
