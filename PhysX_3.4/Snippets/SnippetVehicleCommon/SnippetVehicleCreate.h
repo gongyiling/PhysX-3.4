@@ -107,6 +107,8 @@ struct VehicleDesc
 	ShapeUserData* shapeUserDatas;
 };
 
+void computeDirection(PxU32& rightDirection, PxU32& upDirection);
+
 PxVehicleDrive4W* createVehicle4W(const VehicleDesc& vehDesc, PxPhysics* physics, PxCooking* cooking);
 
 PxVehicleDriveTank* createVehicleTank(const VehicleDesc& vehDesc, PxPhysics* physics, PxCooking* cooking);

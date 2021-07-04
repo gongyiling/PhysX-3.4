@@ -34,10 +34,48 @@
 #include "SnippetVehicleTireFriction.h"
 #include "PxPhysicsAPI.h"
 
+namespace physx
+{
+	extern PxVec3 gRight;
+	extern PxVec3 gUp;
+	extern PxVec3 gForward;
+}
+
 namespace snippetvehicle
 {
 
 using namespace physx;
+
+void computeDirection(PxU32& rightDirection, PxU32& upDirection)
+{
+	//Work out the up and right vectors.
+	rightDirection = 0xffffffff;
+	if (physx::gRight == PxVec3(1.f, 0, 0) || gRight == PxVec3(-1.f, 0, 0))
+	{
+		rightDirection = 0;
+	}
+	else if (gRight == PxVec3(0, 1.f, 0) || gRight == PxVec3(0, -1.f, 0))
+	{
+		rightDirection = 1;
+	}
+	else if (gRight == PxVec3(0, 0, 1.f) || gRight == PxVec3(0, 0, -1.f))
+	{
+		rightDirection = 2;
+	}
+	upDirection = 0xffffffff;
+	if (gUp == PxVec3(1.f, 0, 0) || gUp == PxVec3(-1.f, 0, 0))
+	{
+		upDirection = 0;
+	}
+	else if (gUp == PxVec3(0, 1.f, 0) || gUp == PxVec3(0, -1.f, 0))
+	{
+		upDirection = 1;
+	}
+	else if (gUp == PxVec3(0, 0, 1.f) || gUp == PxVec3(0, 0, -1.f))
+	{
+		upDirection = 2;
+	}
+}
 
 PxRigidStatic* createDrivablePlane(const PxFilterData& simFilterData, PxMaterial* material, PxPhysics* physics)
 {

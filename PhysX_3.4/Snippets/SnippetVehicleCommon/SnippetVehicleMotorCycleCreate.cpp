@@ -117,8 +117,8 @@ void setupWheelsSimulationData
 		//Set the suspension data.
 		for(PxU32 i = 0; i < numWheels; i++)
 		{
-			suspensions[i].mMaxCompression = 1.0f;
-			suspensions[i].mMaxDroop = 1.0f;
+			suspensions[i].mMaxCompression = 0.3f;
+			suspensions[i].mMaxDroop = 0.1f;
 			suspensions[i].mSpringStrength = 35000.0f;	
 			suspensions[i].mSpringDamperRate = 4500.0f;
 			suspensions[i].mSprungMass = suspSprungMasses[i];
@@ -200,37 +200,6 @@ void setupWheelsSimulationData
 	barRear.mStiffness = 10000.0f;
 	wheelsSimData->addAntiRollBarData(barRear);
 	*/
-}
-
-void computeDirection(PxU32& rightDirection, PxU32& upDirection)
-{
-	//Work out the up and right vectors.
-	rightDirection = 0xffffffff;
-	if (physx::gRight == PxVec3(1.f, 0, 0) || gRight == PxVec3(-1.f, 0, 0))
-	{
-		rightDirection = 0;
-	}
-	else if (gRight == PxVec3(0, 1.f, 0) || gRight == PxVec3(0, -1.f, 0))
-	{
-		rightDirection = 1;
-	}
-	else if (gRight == PxVec3(0, 0, 1.f) || gRight == PxVec3(0, 0, -1.f))
-	{
-		rightDirection = 2;
-	}
-	upDirection = 0xffffffff;
-	if (gUp == PxVec3(1.f, 0, 0) || gUp == PxVec3(-1.f, 0, 0))
-	{
-		upDirection = 0;
-	}
-	else if (gUp == PxVec3(0, 1.f, 0) || gUp == PxVec3(0, -1.f, 0))
-	{
-		upDirection = 1;
-	}
-	else if (gUp == PxVec3(0, 0, 1.f) || gUp == PxVec3(0, 0, -1.f))
-	{
-		upDirection = 2;
-	}
 }
 
 void enable2WMode(PxVehicleWheelsSimData& wheelsSimData, PxVehicleWheelsDynData& wheelsDynData, PxVehicleDriveSimData4W& driveSimData)

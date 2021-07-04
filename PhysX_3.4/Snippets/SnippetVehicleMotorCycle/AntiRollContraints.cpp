@@ -4,6 +4,7 @@
 #include "vehicle/PxVehicleDrive4W.h"
 #include "PxScene.h"
 #include "PxPhysics.h"
+#include "../SnippetVehicleCommon/SnippetVehicleCreate.h"
 
 namespace physx
 {
@@ -32,17 +33,64 @@ PxVec3 projection(PxVec3 v1, PxVec3 v2)
 */
 void swing_twist_decomposition(const PxQuat& rotation,
 	const PxVec3& direction,
-	PxQuat& swing,
 	PxQuat& twist)
 {
 	PxVec3 ra(rotation.x, rotation.y, rotation.z); // rotation axis
 	PxVec3 p = projection(ra, direction); // return projection v1 on to v2  (parallel component)
 	twist = PxQuat(p.x, p.y, p.z, rotation.w);
 	twist.normalize();
-	swing = rotation * twist.getConjugate();
 }
 
-PxU32 AntiRollContraints::antiRollConstraintSolverPrep(Px1DConstraint* c, 
+PX_INLINE void computeJacobianAxes(PxVec3 row[3], const PxQuat& qa, const PxQuat& qb)
+{
+	// Compute jacobian matrix for (qa* qb)  [[* means conjugate in this expr]]
+	// d/dt (qa* qb) = 1/2 L(qa*) R(qb) (omega_b - omega_a)
+	// result is L(qa*) R(qb), where L(q) and R(q) are left/right q multiply matrix
+
+	PxReal wa = qa.w, wb = qb.w;
+	const PxVec3 va(qa.x, qa.y, qa.z), vb(qb.x, qb.y, qb.z);
+
+	const PxVec3 c = vb * wa + va * wb;
+	const PxReal d0 = wa * wb;
+	const PxReal d1 = va.dot(vb);
+	const PxReal d = d0 - d1;
+
+	row[0] = (va * vb.x + vb * va.x + PxVec3(d, c.z, -c.y)) * 0.5f;
+	row[1] = (va * vb.y + vb * va.y + PxVec3(-c.z, d, c.x)) * 0.5f;
+	row[2] = (va * vb.z + vb * va.z + PxVec3(c.y, -c.x, d)) * 0.5f;
+
+	if ((d0 + d1) != 0.0f)  // check if relative rotation is 180 degrees which can lead to singular matrix
+		return;
+	else
+	{
+		row[0].x += PX_EPS_F32;
+		row[1].y += PX_EPS_F32;
+		row[2].z += PX_EPS_F32;
+	}
+}
+
+PX_FORCE_INLINE Px1DConstraint* angular(const PxVec3& axis, PxReal posErr, Px1DConstraint* c, bool soft)
+{
+	c->linear0 = PxVec3(0.f);		c->angular0 = axis;
+	c->linear1 = PxVec3(0.f);		c->angular1 = axis;
+
+	c->geometricError = posErr;
+	if (soft)
+	{
+		c->solveHint = PxU16(PxConstraintSolveHint::eNONE);
+		c->mods.spring.stiffness = 100;
+		c->mods.spring.damping = 10;
+		c->flags = Px1DConstraintFlag::eSPRING | Px1DConstraintFlag::eACCELERATION_SPRING;
+	}
+	else
+	{
+		c->solveHint = PxU16(PxConstraintSolveHint::eEQUALITY);
+		c->flags = 0;
+	}
+	return c;
+}
+
+PxU32 AntiRollContraints::antiRollConstraintSolverPrep(Px1DConstraint* c,
     PxVec3& body0WorldOffset, 
     PxU32 maxConstraints,
     PxConstraintInvMassScale&, 
@@ -50,6 +98,7 @@ PxU32 AntiRollContraints::antiRollConstraintSolverPrep(Px1DConstraint* c,
     const PxTransform& bodyAToWorld, 
     const PxTransform& bodyBToWorld)
 {
+	Px1DConstraint* current = c;
 	const AntiRollData* data = static_cast<const AntiRollData*>(constantBlock);
 	PxVehicleDrive4W* v = data->mVehicle;
 	const PxVehicleWheelsSimData& WheelsSimData = v->mWheelsSimData;
@@ -68,60 +117,28 @@ PxU32 AntiRollContraints::antiRollConstraintSolverPrep(Px1DConstraint* c,
 	// target camber angle when motorcycle turn around radius.
 	const PxF32 targetCamberRad = PxAtan2(a, g);
 
-	const PxQuat rotation = bodyBToWorld.q;
+	const PxQuat qB = bodyBToWorld.q;
 
-	const PxVec3 left = rotation.rotate(-gRight);
-	const PxF32 dot = left.dot(gUp);
-	const PxF32 currentCamberRad = -PxAsin(dot);
+	PxQuat qA, twistUp;
+	swing_twist_decomposition(qB, gUp, twistUp);
+	PxQuat pitch(physx::shdfnd::degToRad(-10.0f), gRight);
+	//PxQuat pitch(PxIdentity);
+	PxQuat roll(targetCamberRad, gForward);
+	qA = twistUp * roll * pitch;
 
-	// swing = twistUp * twistForward
-	// rotation = twistUp * twistForward * twistRight
+	PxQuat qB2qA = qA.getConjugate() * qB;
 
-	PxQuat swing, twistRight;
-	swing_twist_decomposition(rotation, gRight, swing, twistRight);
-	PxQuat twistUp, twistForward;
-	swing_twist_decomposition(swing, gForward, twistUp, twistForward);
+	PxVec3 row[3];
+	computeJacobianAxes(row, qA, qB);
+	PxVec3 imp = qB2qA.getImaginaryPart();
+	PxU32 rightDirection, upDirection;
+	snippetvehicle::computeDirection(rightDirection, upDirection);
+	PxU32 forwarDirection = (0 + 1 + 2) - rightDirection - upDirection;
+	bool soft = true;
+	angular(row[forwarDirection], -imp[forwarDirection], current++, soft);
+	angular(row[rightDirection], -imp[rightDirection], current++, soft);
 
-	const PxVec3 Dir = twistUp.rotate(gForward);
-	const bool soft = false;
-	if (true)
-	{
-		c->solveHint = PxU16(PxConstraintSolveHint::eNONE);
-		c->linear0 = PxVec3(0.f);		c->angular0 = Dir;
-		c->linear1 = PxVec3(0.f);		c->angular1 = Dir;
-		c->mods.spring.stiffness = 100;
-		c->mods.spring.damping = 10;
-		c->flags = Px1DConstraintFlag::eSPRING | Px1DConstraintFlag::eACCELERATION_SPRING;
-	}
-	else
-	{
-		c->solveHint = PxU16(PxConstraintSolveHint::eEQUALITY);
-		c->linear0 = PxVec3(0.f);		c->angular0 = Dir;
-		c->linear1 = PxVec3(0.f);		c->angular1 = Dir;
-		c->flags = 0;
-	}
-	c->geometricError = targetCamberRad - currentCamberRad;
-	c++;
-	PxVec3 right = swing.rotate(gRight);
-	const PxF32 twistAngle = twistRight.getAngle();
-	if (true)
-	{
-		c->solveHint = PxU16(PxConstraintSolveHint::eNONE);
-		c->linear0 = PxVec3(0.f);		c->angular0 = right;
-		c->linear1 = PxVec3(0.f);		c->angular1 = right;
-		c->mods.spring.stiffness = 100;
-		c->mods.spring.damping = 10;
-		c->flags = Px1DConstraintFlag::eSPRING | Px1DConstraintFlag::eACCELERATION_SPRING;
-	}
-	else
-	{
-		c->solveHint = PxU16(PxConstraintSolveHint::eEQUALITY);
-		c->linear0 = PxVec3(0.f);		c->angular0 = right;
-		c->linear1 = PxVec3(0.f);		c->angular1 = right;
-		c->flags = 0;
-	}
-	c->geometricError = physx::shdfnd::degToRad(30.0f) - twistAngle;
-    return 2;
+    return current - c;
 }
 
 extern PxPhysics* gPhysics;
