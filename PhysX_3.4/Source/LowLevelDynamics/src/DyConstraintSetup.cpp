@@ -471,6 +471,12 @@ PxReal dt, PxReal invdt)
 			PxReal resp0 = s.lin0.magnitudeSquared() * prepDesc.data0->invMass * prepDesc.mInvMassScales.linear0 + s.ang0.magnitudeSquared() * prepDesc.mInvMassScales.angular0;
 			PxReal resp1 = s.lin1.magnitudeSquared() * prepDesc.data1->invMass * prepDesc.mInvMassScales.linear1 + s.ang1.magnitudeSquared() * prepDesc.mInvMassScales.angular1;
 			unitResponse = resp0 + resp1;
+
+			/*
+			* 刚体某一点p的速度为 v + w * r, 其中v是质心速度，w是围绕质心角速度，r是质心到该点p的位移
+			* 该速度投影到向量n，其值为 (v + w * r) . n，展开得v . n + w * r . n，注意到w * r . n = r * n . w
+			* 因此c.linear = n, c.angular = r * n
+			*/ 
 			initVel = normalVel = prepDesc.data0->projectVelocity(c.linear0, c.angular0) - prepDesc.data1->projectVelocity(c.linear1, c.angular1);
 		}
 		else
