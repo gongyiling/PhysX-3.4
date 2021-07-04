@@ -78,7 +78,29 @@ PX_FORCE_INLINE Px1DConstraint* angular(const PxVec3& axis, PxReal posErr, Px1DC
 	if (soft)
 	{
 		c->solveHint = PxU16(PxConstraintSolveHint::eNONE);
-		c->mods.spring.stiffness = 100;
+		c->mods.spring.stiffness = 80;
+		c->mods.spring.damping = 10;
+		c->flags = Px1DConstraintFlag::eSPRING | Px1DConstraintFlag::eACCELERATION_SPRING;
+	}
+	else
+	{
+		c->solveHint = PxU16(PxConstraintSolveHint::eEQUALITY);
+		c->flags = 0;
+	}
+	return c;
+}
+
+PX_FORCE_INLINE Px1DConstraint* angularVelocity(const PxVec3& axis, PxReal velocityTarget, Px1DConstraint* c, bool soft)
+{
+	c->linear0 = PxVec3(0.f);		c->angular0 = axis;
+	c->linear1 = PxVec3(0.f);		c->angular1 = axis;
+
+	c->geometricError = 0;
+	c->velocityTarget = velocityTarget;
+	if (soft)
+	{
+		c->solveHint = PxU16(PxConstraintSolveHint::eNONE);
+		c->mods.spring.stiffness = 80;
 		c->mods.spring.damping = 10;
 		c->flags = Px1DConstraintFlag::eSPRING | Px1DConstraintFlag::eACCELERATION_SPRING;
 	}
@@ -121,7 +143,7 @@ PxU32 AntiRollContraints::antiRollConstraintSolverPrep(Px1DConstraint* c,
 
 	PxQuat qA, twistUp;
 	swing_twist_decomposition(qB, gUp, twistUp);
-	PxQuat pitch(physx::shdfnd::degToRad(-10.0f), gRight);
+	PxQuat pitch(physx::shdfnd::degToRad(-30.0f), gRight);
 	//PxQuat pitch(PxIdentity);
 	PxQuat roll(targetCamberRad, gForward);
 	qA = twistUp * roll * pitch;
@@ -134,9 +156,11 @@ PxU32 AntiRollContraints::antiRollConstraintSolverPrep(Px1DConstraint* c,
 	PxU32 rightDirection, upDirection;
 	snippetvehicle::computeDirection(rightDirection, upDirection);
 	PxU32 forwarDirection = (0 + 1 + 2) - rightDirection - upDirection;
-	bool soft = true;
-	angular(row[forwarDirection], -imp[forwarDirection], current++, soft);
+	bool soft = false;
 	angular(row[rightDirection], -imp[rightDirection], current++, soft);
+	angular(row[forwarDirection], -imp[forwarDirection], current++, soft);
+	angularVelocity(row[upDirection], -1, current++, soft);
+
 
     return current - c;
 }

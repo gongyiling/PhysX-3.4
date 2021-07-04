@@ -533,7 +533,12 @@ void stepPhysics()
 	//Work out if the vehicle is in the air.
 	gIsVehicleInAir = gVehicle4W->getRigidDynamicActor()->isSleeping() ? false : PxVehicleIsInAir(vehicleQueryResults[0]);
 	
+	const PxWheelQueryResult& fw = wheelQueryResults[0];
+	const PxWheelQueryResult& bw = wheelQueryResults[2];
+	const PxVehicleWheelData& bwd = gVehicle4W->mWheelsSimData.getWheelData(2);
+	PxF32 rotationSpeed = gVehicle4W->mWheelsDynData.getWheelRotationSpeed(2);
 	PxF32 steerAngle = wheelQueryResults[0].steerAngle;
+	printf("%.02f\t%.02f\n", bw.longitudinalSlip, rotationSpeed);
 	//gAntiRoll.antiRoll(timestep, steerAngle);
 	gConstraintData.antiRoll->mAntiRollData.steerRad = steerAngle;
 	gConstraintData.constraint->markDirty();
