@@ -1104,7 +1104,7 @@ physx::PxU32 WindowsPlatform::initializeD3D11Display(void *dxgiSwapChainDesc,
 
 		D3D11_CREATE_DEVICE_FLAG deviceFlags = (D3D11_CREATE_DEVICE_FLAG)(D3D11_CREATE_DEVICE_SINGLETHREADED | D3D11_CREATE_DEVICE_BGRA_SUPPORT);
 #if PX_DEBUG
-		deviceFlags = (D3D11_CREATE_DEVICE_FLAG)(deviceFlags | D3D11_CREATE_DEVICE_DEBUG);
+		deviceFlags = (D3D11_CREATE_DEVICE_FLAG)(deviceFlags);
 #endif
 		D3D_FEATURE_LEVEL deviceFeatureLevel = D3D_FEATURE_LEVEL_11_0;
 		for (i = 0; i < vAdapters.size(); ++i)
