@@ -36,7 +36,7 @@
 namespace physx
 {
 
-struct PxTriangle;
+class PxTriangle;
 struct PxSweepHit;
 struct PxMTD;
 
