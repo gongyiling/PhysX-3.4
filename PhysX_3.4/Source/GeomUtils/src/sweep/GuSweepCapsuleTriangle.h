@@ -67,7 +67,6 @@ namespace Gu
 										PxSweepHit& hit, PxVec3& triNormalOut,						// Results
 										PxHitFlags hitFlags, bool isDoubleSided,				// Query modifiers
 										const BoxPadded* cullBox=NULL);							// Cull data
-
 } // namespace Gu
 
 }

@@ -154,12 +154,6 @@ namespace Cct
 
 	};
 
-	struct PxMTD
-	{
-		PxVec3 normal;
-		PxReal distance;
-	};
-
 	typedef Ps::Array<PxMTD> MTDArray;
 
 	/* Exclude from documentation */
@@ -381,6 +375,7 @@ namespace Cct
 					PxU32				mRenderFlags;
 					TriArray			mWorldTriangles;
 					MTDArray			mMTDs;
+					PxExtendedVec3		mMTDCapsuleCenter;
 					IntArray			mTriangleIndices;
 					IntArray			mGeomStream;
 					PxExtendedBounds3	mCacheBounds;

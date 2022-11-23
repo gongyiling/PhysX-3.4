@@ -753,8 +753,28 @@ static const PxU32 GeomSizes[] =
 	sizeof(TouchedCapsule),
 };
 
+static void UpdateMTD(SweepTest* sweep_test, const PxExtendedVec3& center)
+{
+	const PxVec3 offset = center - sweep_test->mMTDCapsuleCenter;
+	MTDArray& Mtd = sweep_test->mMTDs;
+	if (offset.isZero())
+	{
+		return;
+	}
+	sweep_test->mMTDCapsuleCenter = center;
+	for (PxU32 i = 0; i < Mtd.size(); i++)
+	{
+		PxMTD& m = Mtd[i];
+		if (m.distance > 0)
+		{
+			const PxReal d = offset.dot(m.normal);
+			m.distance += d;
+		}
+	}
+}
+
 static const TouchedGeom* CollideGeoms(
-	const SweepTest* sweep_test, const SweptVolume& volume, const IntArray& geom_stream,
+	SweepTest* sweep_test, const SweptVolume& volume, const IntArray& geom_stream,
 	const PxExtendedVec3& center, const PxVec3& dir, SweptContact& impact, bool discardInitialOverlap)
 {
 	impact.mInternalIndex	= PX_INVALID_U32;
@@ -763,6 +783,9 @@ static const TouchedGeom* CollideGeoms(
 
 	const PxU32* Data = geom_stream.begin();
 	const PxU32* Last = geom_stream.end();
+
+	UpdateMTD(sweep_test, center);
+	
 	while(Data!=Last)
 	{
 		const TouchedGeom* CurrentGeom = reinterpret_cast<const TouchedGeom*>(Data);
@@ -1273,6 +1296,9 @@ void SweepTest::updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userDa
 			mWorldTriangles.forceSize_Unsafe(mNbCachedT);
 			mTriangleIndices.forceSize_Unsafe(mNbCachedT);			
 			mMTDs.forceSize_Unsafe(mNbCachedT);
+
+			UpdateMTD(this, swept_volume.mCenter);
+
 			filter.mStaticShapes	= false;
 			if(filters.mFilterFlags & PxQueryFlag::eDYNAMIC)
 				filter.mDynamicShapes	= true;
@@ -1350,6 +1376,8 @@ void SweepTest::updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userDa
 		findTouchedObstacles(userObstacles, DYNAMIC_BOX);
 
 		mFlags &= ~STF_FIRST_UPDATE;
+
+		mMTDCapsuleCenter = swept_volume.mCenter;
 		//printf("CACHEOUTNSDONE=%d\n", mNbCachedStatic);
 	}
 

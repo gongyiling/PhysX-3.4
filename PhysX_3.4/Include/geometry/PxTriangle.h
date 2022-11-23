@@ -140,6 +140,11 @@ class PxTriangle
 
 };
 
+struct PxMTD
+{
+	PxVec3 normal;
+	PxReal distance;
+};
 
 #if !PX_DOXYGEN
 }

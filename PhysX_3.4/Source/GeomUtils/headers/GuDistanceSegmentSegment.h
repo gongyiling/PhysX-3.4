@@ -35,8 +35,14 @@
 
 namespace physx
 {
+
+struct PxTriangle;
+struct PxSweepHit;
+struct PxMTD;
+
 namespace Gu
 {
+	class Capsule;
 	// This version fixes accuracy issues (e.g.  TTP 4617), but needs to do 2 square roots in order
 	// to find the normalized direction and length of the segments, and then
 	// a division in order to renormalize the output
@@ -58,6 +64,12 @@ namespace Gu
 												s, t);
 	}
 
+	PX_PHYSX_COMMON_API bool sweepCapsuleTriangles_WithMTD(PxU32 nbTris, const PxTriangle* PX_RESTRICT triangles,	// Triangle data
+															const PxMTD* mtds,
+															const Capsule& capsule,									// Capsule data
+															const PxVec3& unitDir, const PxReal distance,			// Ray data
+															const PxU32* PX_RESTRICT cachedIndex,					// Cache data
+															PxSweepHit& hit, PxVec3& triNormalOut);					// Results
 } // namespace Gu
 
 }
