@@ -40,6 +40,9 @@
 #include "GuDistanceSegmentBox.h"
 #include "PxMeshQuery.h"
 #include "PsFPU.h"
+#include "GuDistanceSegmentSegment.h"
+#include "PxQueryReport.h"
+#include "GuCapsule.h"
 
 // PT: TODO: remove those includes.... shouldn't be allowed from here
 #include "PxControllerObstacles.h"	// (*)
@@ -405,7 +408,42 @@ static bool SweepCapsuleMeshWithMTD(
 	PxTransform capsulePose;
 	relocateCapsule(capsuleGeom, capsulePose, SC, sweep_test->mUserParams.mQuatFromUp, center, TM->mOffset);
 
-	return sweepVolumeVsMesh(sweep_test, TM, impact, dir, capsuleGeom, capsulePose, nbTris, T, CachedIndex);
+	Capsule capsule;
+	const PxVec3 tmp = capsulePose.q.getBasisVector0() * capsuleGeom.halfHeight;
+	capsule.p0 = capsulePose.p + tmp;
+	capsule.p1 = capsulePose.p - tmp;
+	capsule.radius = capsuleGeom.radius;
+
+	PxSweepHit sweepHit;
+	PxVec3 triNormal;
+	if (Gu::sweepCapsuleTriangles_WithMTD(nbTris, T,	// Triangle data
+		sweep_test->mMTDs.begin(),
+		capsule,
+		dir, impact.mDistance,
+		&CachedIndex,
+		sweepHit, triNormal))
+	{
+		if (sweepHit.distance >= impact.mDistance)
+			return false;
+
+		impact.mDistance = sweepHit.distance;
+		impact.mWorldNormal = sweepHit.normal;
+		impact.setWorldPos(sweepHit.position, TM->mOffset);
+
+		// Returned index is only between 0 and nbTris, i.e. it indexes the array of cached triangles, not the original mesh.
+		PX_ASSERT(sweepHit.faceIndex < nbTris);
+		sweep_test->mCachedTriIndex[sweep_test->mCachedTriIndexIndex] = sweepHit.faceIndex;
+
+		// The CCT loop will use the index from the start of the cache...
+		impact.mInternalIndex = sweepHit.faceIndex + TM->mIndexWorldTriangles;
+		const PxU32* triangleIndices = &sweep_test->mTriangleIndices[TM->mIndexWorldTriangles];
+		impact.mTriangleIndex = triangleIndices[sweepHit.faceIndex];
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 
