@@ -338,7 +338,7 @@ Exit:
 
 static bool rejectByMtd(const PxMTD& mtd, const PxVec3 offset)
 {
-	if (mtd.distance > 0 && offset.dot(mtd.normal))
+	if (mtd.distance > 0 && mtd.distance + offset.dot(mtd.normal) > 0)
 	{
 		return true;
 	}
