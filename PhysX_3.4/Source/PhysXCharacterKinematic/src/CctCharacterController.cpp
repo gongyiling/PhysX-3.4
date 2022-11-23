@@ -379,6 +379,36 @@ static bool SweepCapsuleMesh(
 	return sweepVolumeVsMesh(sweep_test, TM, impact, dir, capsuleGeom, capsulePose, nbTris, T, CachedIndex);
 }
 
+static bool SweepCapsuleMeshWithMTD(
+	const SweepTest* sweep_test, const SweptVolume* volume, const TouchedGeom* geom,
+	const PxExtendedVec3& center, const PxVec3& dir, SweptContact& impact)
+{
+	PX_ASSERT(volume->getType() == SweptVolumeType::eCAPSULE);
+	PX_ASSERT(geom->mType == TouchedGeomType::eMESH);
+	const SweptCapsule* SC = static_cast<const SweptCapsule*>(volume);
+	const TouchedMesh* TM = static_cast<const TouchedMesh*>(geom);
+
+	PxU32 nbTris = TM->mNbTris;
+	if (!nbTris)
+		return false;
+
+	// Fetch triangle data for current mesh (the stream may contain triangles from multiple meshes)
+	const PxTriangle* T = &sweep_test->mWorldTriangles.getTriangle(TM->mIndexWorldTriangles);
+
+	// PT: this only really works when the CCT collides with a single mesh, but that's the most common case.
+	// When it doesn't, there's just no speedup but it still works.
+	PxU32 CachedIndex = sweep_test->mCachedTriIndex[sweep_test->mCachedTriIndexIndex];
+	if (CachedIndex >= nbTris)
+		CachedIndex = 0;
+
+	PxCapsuleGeometry capsuleGeom;
+	PxTransform capsulePose;
+	relocateCapsule(capsuleGeom, capsulePose, SC, sweep_test->mUserParams.mQuatFromUp, center, TM->mOffset);
+
+	return sweepVolumeVsMesh(sweep_test, TM, impact, dir, capsuleGeom, capsulePose, nbTris, T, CachedIndex);
+}
+
+
 static bool SweepBoxBox(const SweepTest* test, const SweptVolume* volume, const TouchedGeom* geom, const PxExtendedVec3& center, const PxVec3& dir, SweptContact& impact)
 {
 	PX_ASSERT(volume->getType()==SweptVolumeType::eBOX);
@@ -703,7 +733,8 @@ static SweepFunc gSweepMap[SweptVolumeType::eLAST][TouchedGeomType::eLAST] = {
 	{
 	SweepCapsuleUserBox,
 	SweepCapsuleUserCapsule,
-	SweepCapsuleMesh,
+	//SweepCapsuleMesh,
+	SweepCapsuleMeshWithMTD,
 	SweepCapsuleBox,
 	SweepCapsuleSphere,
 	SweepCapsuleCapsule
@@ -1196,7 +1227,8 @@ void SweepTest::findTouchedObstacles(const UserObstacles& userObstacles, const P
 }
 
 void SweepTest::updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userData, const UserObstacles& userObstacles,
-									const PxExtendedBounds3& worldTemporalBox, const PxControllerFilters& filters, const PxVec3& sideVector)
+									const PxExtendedBounds3& worldTemporalBox, const PxControllerFilters& filters, const PxVec3& sideVector, 
+									const SweptVolume& swept_volume)
 {
 	/*
 	- if this is the first iteration (new frame) we have to redo the dynamic objects & the CCTs. The static objects can
@@ -1240,11 +1272,11 @@ void SweepTest::updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userDa
 			mGeomStream.forceSize_Unsafe(mNbCachedStatic);
 			mWorldTriangles.forceSize_Unsafe(mNbCachedT);
 			mTriangleIndices.forceSize_Unsafe(mNbCachedT);			
-
+			mMTDs.forceSize_Unsafe(mNbCachedT);
 			filter.mStaticShapes	= false;
 			if(filters.mFilterFlags & PxQueryFlag::eDYNAMIC)
 				filter.mDynamicShapes	= true;
-			findTouchedGeometry(userData, DYNAMIC_BOX, mWorldTriangles, mTriangleIndices, mGeomStream, filter, mUserParams, mNbTessellation);
+			findTouchedGeometry(userData, DYNAMIC_BOX, mWorldTriangles, mTriangleIndices, mGeomStream, filter, mUserParams, mNbTessellation, mMTDs, swept_volume);
 			updateCachedShapesRegistration(mNbCachedStatic, false);
 
 			findTouchedObstacles(userObstacles, DYNAMIC_BOX);
@@ -1288,6 +1320,7 @@ void SweepTest::updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userDa
 		// Gather triangles touched by this box. This covers multiple meshes.
 		mWorldTriangles.clear();
 		mTriangleIndices.clear();
+		mMTDs.clear();
 		mGeomStream.clear();
 //		mWorldTriangles.reset();
 //		mTriangleIndices.reset();
@@ -1301,7 +1334,7 @@ void SweepTest::updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userDa
 		if(filters.mFilterFlags & PxQueryFlag::eSTATIC)
 			filter.mStaticShapes	= true;
 		filter.mDynamicShapes	= false;
-		findTouchedGeometry(userData, mCacheBounds, mWorldTriangles, mTriangleIndices, mGeomStream, filter, mUserParams, mNbTessellation);
+		findTouchedGeometry(userData, mCacheBounds, mWorldTriangles, mTriangleIndices, mGeomStream, filter, mUserParams, mNbTessellation, mMTDs, swept_volume);
 
 		mNbCachedStatic = mGeomStream.size();
 		mNbCachedT = mWorldTriangles.size();
@@ -1310,7 +1343,7 @@ void SweepTest::updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userDa
 		filter.mStaticShapes	= false;
 		if(filters.mFilterFlags & PxQueryFlag::eDYNAMIC)
 			filter.mDynamicShapes	= true;
-		findTouchedGeometry(userData, DYNAMIC_BOX, mWorldTriangles, mTriangleIndices, mGeomStream, filter, mUserParams, mNbTessellation);
+		findTouchedGeometry(userData, DYNAMIC_BOX, mWorldTriangles, mTriangleIndices, mGeomStream, filter, mUserParams, mNbTessellation, mMTDs, swept_volume);
 		// We can't early exit when no tris are touched since we also have to handle the boxes
 		updateCachedShapesRegistration(0, false);
 
@@ -1387,7 +1420,7 @@ bool SweepTest::doSweepTest(const InternalCBData_FindTouchedGeom* userData,
 			swept_volume.computeTemporalBox(*this, temporalBox, currentPosition, currentDirection);
 
 			// Gather touched geoms
-			updateTouchedGeoms(userData, userObstacles, temporalBox, filters, sideVector);
+			updateTouchedGeoms(userData, userObstacles, temporalBox, filters, sideVector, swept_volume);
 		}
 
 		const float Length = currentDirection.magnitude();
@@ -1742,7 +1775,7 @@ PxControllerCollisionFlags SweepTest::moveCharacter(
 		volume.computeTemporalBox(*this, temporalBox, volume.mCenter, direction);
 
 		// Gather touched geoms
-		updateTouchedGeoms(userData, userObstacles, temporalBox, filters, SideVector);
+		updateTouchedGeoms(userData, userObstacles, temporalBox, filters, SideVector, volume);
 	}
 
 	// ==========[ UP PASS ]===========================

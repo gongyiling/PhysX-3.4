@@ -43,6 +43,10 @@
 #include "GuIntersectionTriangleBox.h"
 #include "PsMathUtils.h"
 #include "GuSIMDHelpers.h"
+#include "GuSegment.h"
+#include "GuDistanceSegmentTriangle.h"
+#include "CctSweptVolume.h"
+#include "CctSweptCapsule.h"
 
 static const bool gVisualizeTouchedTris = false;
 static const float gDebugVisOffset = 0.01f;
@@ -916,7 +920,9 @@ void Cct::findTouchedGeometry(
 
 	const CCTFilter& filter,
 	const CCTParams& params,
-	PxU16& nbTessellation)
+	PxU16& nbTessellation,
+	MTDArray& MtdArray,
+	const SweptVolume& swept_volumn)
 {
 	PX_ASSERT(userData);
 	
@@ -943,7 +949,7 @@ void Cct::findTouchedGeometry(
 		if(filter.mPostFilter)
 			sqFilterFlags |= PxQueryFlag::ePOSTFILTER;
 	}
-
+	const PxU32 worldTrianglesSize = worldTriangles.size();
 	// ### this one is dangerous
 	const PxBounds3 tmpBounds(toVec3(worldBounds.minimum), toVec3(worldBounds.maximum));	// LOSS OF ACCURACY
 
@@ -993,7 +999,51 @@ void Cct::findTouchedGeometry(
 		else	if(type==PxGeometryType::eCONVEXMESH)	outputConvexToStream		(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, params, renderBuffer, nbTessellation);
 		else	if(type==PxGeometryType::ePLANE)		outputPlaneToStream			(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, params, renderBuffer);
 	}
+
+	CalcMTD(swept_volumn, params, worldTrianglesSize + worldTriangles.begin(), worldTriangles.size() + worldTriangles.begin(), MtdArray);
 }
+
+void Cct::CalcMTD(const SweptVolume& swept_volumn, const CCTParams& params, const PxTriangle* triangles, const PxTriangle* triangles_end, MTDArray& MtdArray)
+{
+	const PxU32 old_size = MtdArray.size();
+	MtdArray.resizeUninitialized(MtdArray.size() + (triangles_end - triangles));
+	PxMTD* mtd = MtdArray.begin() + old_size;
+	const SweptCapsule& swept_capsule = static_cast <const SweptCapsule&> (swept_volumn);
+
+	const PxVec3 center = toVec3(swept_capsule.mCenter);
+	const PxVec3 rotatedP0 = params.mQuatFromUp.rotate(PxVec3(swept_capsule.mHalfHeight, 0, 0));
+	const Segment meshCapsule(center + rotatedP0, center - rotatedP0);
+	const PxReal radiusSqr = swept_capsule.mRadius * swept_capsule.mRadius;
+	for (; triangles != triangles_end; triangles++)
+	{
+		PxMTD& m = *mtd++;
+		const PxTriangle& tri = *triangles;
+
+		const PxVec3& p0 = tri.verts[0];
+		const PxVec3& p1 = tri.verts[1];
+		const PxVec3& p2 = tri.verts[2];
+		PxReal t, u, v;
+		const PxVec3 p1_p0 = p1 - p0;
+		const PxVec3 p2_p0 = p2 - p0;
+
+		const PxReal squareDist = distanceSegmentTriangleSquared(meshCapsule, p0, p1_p0, p2_p0, &t, &u, &v);
+		if (squareDist < radiusSqr)
+		{
+			m.distance = 0;
+			// we are in contact.
+		}
+		else
+		{
+			const PxVec3 pointOnTriangle = Ps::computeBarycentricPoint(p0, p1, p2, u, v);
+
+			const PxVec3 pointOnSegment = meshCapsule.getPointAt(t);
+			m.normal = pointOnSegment - pointOnTriangle;
+			m.distance = m.normal.magnitude();
+			m.normal /= m.distance;
+		}
+	}
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

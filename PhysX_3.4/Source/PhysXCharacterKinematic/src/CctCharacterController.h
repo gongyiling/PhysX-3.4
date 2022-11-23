@@ -154,6 +154,14 @@ namespace Cct
 
 	};
 
+	struct PxMTD
+	{
+		PxVec3 normal;
+		PxReal distance;
+	};
+
+	typedef Ps::Array<PxMTD> MTDArray;
+
 	/* Exclude from documentation */
 	/** \cond */
 
@@ -372,6 +380,7 @@ namespace Cct
 					Cm::RenderBuffer*	mRenderBuffer;
 					PxU32				mRenderFlags;
 					TriArray			mWorldTriangles;
+					MTDArray			mMTDs;
 					IntArray			mTriangleIndices;
 					IntArray			mGeomStream;
 					PxExtendedBounds3	mCacheBounds;
@@ -428,7 +437,8 @@ namespace Cct
 
 	private:
 				void					updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userData, const UserObstacles& userObstacles,
-															const PxExtendedBounds3& worldBox, const PxControllerFilters& filters, const PxVec3& sideVector);				
+															const PxExtendedBounds3& worldBox, const PxControllerFilters& filters, const PxVec3& sideVector,
+															const SweptVolume& swept_volume);
 
 				CharacterControllerManager*	mCctManager;
 				SweepTest(const SweepTest&);
@@ -468,7 +478,11 @@ namespace Cct
 
 		const CCTFilter& filter,
 		const CCTParams& params,
-		PxU16& nbTessellation);
+		PxU16& nbTessellation, 
+		MTDArray& MtdArray,
+		const SweptVolume& swept_volumn);
+
+	void CalcMTD(const SweptVolume& swept_volumn, const CCTParams& params, const PxTriangle* triangles, const PxTriangle* triangles_end, MTDArray& MtdArray);
 
 	PxU32 shapeHitCallback(const InternalCBData_OnHit* userData, const SweptContact& contact, const PxVec3& dir, PxF32 length);
 	PxU32 userHitCallback(const InternalCBData_OnHit* userData, const SweptContact& contact, const PxVec3& dir, PxF32 length);
