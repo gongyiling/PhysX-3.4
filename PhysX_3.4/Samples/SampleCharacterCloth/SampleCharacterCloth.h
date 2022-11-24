@@ -176,6 +176,9 @@ namespace physx
 				shdfnd::Time					mTimer;
 				PxReal							mAccumulatedSimulationTime;
 				PxReal							mAverageSimulationTime;
+				PxReal							mAccumulatedMoveTime;
+				PxReal							mAverageMoveTime;
+				PxU32							mMoveCount;
 				PxU32							mFrameCount;								
 
 		///////////////////////////////////////////////////////////////////////////////

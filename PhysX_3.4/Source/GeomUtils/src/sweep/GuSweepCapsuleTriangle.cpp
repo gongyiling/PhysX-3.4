@@ -334,7 +334,7 @@ Exit:
 	return true;
 }
 
-
+#if PX_ENABLE_MTD_MOVEMENT
 
 static bool rejectByMtd(const PxMTD& mtd, const PxVec3 offset)
 {
@@ -612,3 +612,5 @@ Exit:
 	}
 	return true;
 }
+
+#endif

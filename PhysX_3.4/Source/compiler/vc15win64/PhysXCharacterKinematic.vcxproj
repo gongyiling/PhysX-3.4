@@ -63,6 +63,7 @@
     <CodeAnalysisRules />
     <CodeAnalysisRuleAssemblies />
     <SkipCopyingSymbolsToOutputDirectory>true</SkipCopyingSymbolsToOutputDirectory>
+    <IncludePath>..\..\GeomUtils\src;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='debug|x64'">
     <ClCompile>

@@ -140,11 +140,13 @@ class PxTriangle
 
 };
 
+#if PX_ENABLE_MTD_MOVEMENT
 struct PxMTD
 {
 	PxVec3 normal;
 	PxReal distance;
 };
+#endif
 
 #if !PX_DOXYGEN
 }

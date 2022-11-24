@@ -43,10 +43,12 @@
 #include "GuIntersectionTriangleBox.h"
 #include "PsMathUtils.h"
 #include "GuSIMDHelpers.h"
+#if PX_ENABLE_MTD_MOVEMENT
 #include "GuSegment.h"
 #include "GuDistanceSegmentTriangle.h"
 #include "CctSweptVolume.h"
 #include "CctSweptCapsule.h"
+#endif
 
 static const bool gVisualizeTouchedTris = false;
 static const float gDebugVisOffset = 0.01f;
@@ -920,9 +922,12 @@ void Cct::findTouchedGeometry(
 
 	const CCTFilter& filter,
 	const CCTParams& params,
-	PxU16& nbTessellation,
-	MTDArray& MtdArray,
-	const SweptVolume& swept_volumn)
+	PxU16& nbTessellation
+#if PX_ENABLE_MTD_MOVEMENT
+	, MTDArray& MtdArray,
+	const SweptVolume& swept_volumn
+#endif
+	)
 {
 	PX_ASSERT(userData);
 	
@@ -949,7 +954,9 @@ void Cct::findTouchedGeometry(
 		if(filter.mPostFilter)
 			sqFilterFlags |= PxQueryFlag::ePOSTFILTER;
 	}
+#if PX_ENABLE_MTD_MOVEMENT
 	const PxU32 worldTrianglesSize = worldTriangles.size();
+#endif
 	// ### this one is dangerous
 	const PxBounds3 tmpBounds(toVec3(worldBounds.minimum), toVec3(worldBounds.maximum));	// LOSS OF ACCURACY
 
@@ -999,10 +1006,12 @@ void Cct::findTouchedGeometry(
 		else	if(type==PxGeometryType::eCONVEXMESH)	outputConvexToStream		(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, params, renderBuffer, nbTessellation);
 		else	if(type==PxGeometryType::ePLANE)		outputPlaneToStream			(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, params, renderBuffer);
 	}
-
+#if PX_ENABLE_MTD_MOVEMENT
 	CalcMTD(swept_volumn, params, worldTrianglesSize + worldTriangles.begin(), worldTriangles.size() + worldTriangles.begin(), MtdArray);
+#endif
 }
 
+#if PX_ENABLE_MTD_MOVEMENT
 void Cct::CalcMTD(const SweptVolume& swept_volumn, const CCTParams& params, const PxTriangle* triangles, const PxTriangle* triangles_end, MTDArray& MtdArray)
 {
 	const PxU32 old_size = MtdArray.size();
@@ -1010,9 +1019,8 @@ void Cct::CalcMTD(const SweptVolume& swept_volumn, const CCTParams& params, cons
 	PxMTD* mtd = MtdArray.begin() + old_size;
 	const SweptCapsule& swept_capsule = static_cast <const SweptCapsule&> (swept_volumn);
 
-	const PxVec3 center = toVec3(swept_capsule.mCenter);
-	const PxVec3 rotatedP0 = params.mQuatFromUp.rotate(PxVec3(swept_capsule.mHalfHeight, 0, 0));
-	const Segment meshCapsule(center + rotatedP0, center - rotatedP0);
+	const PxVec3 rotatedP0 = params.mQuatFromUp.getBasisVector0() * swept_capsule.mHalfHeight;
+	const Segment meshCapsule(rotatedP0, -rotatedP0);
 	const PxReal radiusSqr = swept_capsule.mRadius * swept_capsule.mRadius;
 	for (; triangles != triangles_end; triangles++)
 	{
@@ -1043,6 +1051,7 @@ void Cct::CalcMTD(const SweptVolume& swept_volumn, const CCTParams& params, cons
 		}
 	}
 }
+#endif
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

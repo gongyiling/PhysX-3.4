@@ -153,9 +153,9 @@ namespace Cct
 		}
 
 	};
-
+#if PX_ENABLE_MTD_MOVEMENT
 	typedef Ps::Array<PxMTD> MTDArray;
-
+#endif
 	/* Exclude from documentation */
 	/** \cond */
 
@@ -374,8 +374,10 @@ namespace Cct
 					Cm::RenderBuffer*	mRenderBuffer;
 					PxU32				mRenderFlags;
 					TriArray			mWorldTriangles;
+#if PX_ENABLE_MTD_MOVEMENT
 					MTDArray			mMTDs;
 					PxExtendedVec3		mMTDCapsuleCenter;
+#endif
 					IntArray			mTriangleIndices;
 					IntArray			mGeomStream;
 					PxExtendedBounds3	mCacheBounds;
@@ -432,8 +434,11 @@ namespace Cct
 
 	private:
 				void					updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userData, const UserObstacles& userObstacles,
-															const PxExtendedBounds3& worldBox, const PxControllerFilters& filters, const PxVec3& sideVector,
-															const SweptVolume& swept_volume);
+															const PxExtendedBounds3& worldBox, const PxControllerFilters& filters, const PxVec3& sideVector
+#if PX_ENABLE_MTD_MOVEMENT
+															,const SweptVolume& swept_volume
+#endif
+															);
 
 				CharacterControllerManager*	mCctManager;
 				SweepTest(const SweepTest&);
@@ -473,12 +478,16 @@ namespace Cct
 
 		const CCTFilter& filter,
 		const CCTParams& params,
-		PxU16& nbTessellation, 
-		MTDArray& MtdArray,
-		const SweptVolume& swept_volumn);
+		PxU16& nbTessellation
+#if PX_ENABLE_MTD_MOVEMENT
+		, MTDArray& MtdArray,
+		const SweptVolume& swept_volumn
+#endif
+		);
 
+#if PX_ENABLE_MTD_MOVEMENT
 	void CalcMTD(const SweptVolume& swept_volumn, const CCTParams& params, const PxTriangle* triangles, const PxTriangle* triangles_end, MTDArray& MtdArray);
-
+#endif
 	PxU32 shapeHitCallback(const InternalCBData_OnHit* userData, const SweptContact& contact, const PxVec3& dir, PxF32 length);
 	PxU32 userHitCallback(const InternalCBData_OnHit* userData, const SweptContact& contact, const PxVec3& dir, PxF32 length);
 

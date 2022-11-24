@@ -541,5 +541,7 @@ protected:                                                                      
 #define PX_SUPPORT_EXTERN_TEMPLATE 0
 #endif
 
+#define PX_ENABLE_MTD_MOVEMENT 0
+
 /** @} */
 #endif // #ifndef PXFOUNDATION_PXPREPROCESSOR_H

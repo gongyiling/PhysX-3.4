@@ -293,10 +293,10 @@ void SampleCharacterCloth::customizeRender()
 		y -= yInc;
 
 		char fpsText[512];
-		sprintf(fpsText, "Average PhysX time: %3.3f ms", 1000.0f * mAverageSimulationTime);
+		sprintf(fpsText, "Average PhysX time: %3.3f ms, Move time: %3.3f m,s", 1000.0f * mAverageSimulationTime, mAverageMoveTime);
 	
 		const RendererColor textColor(255, 255, 255, 255);
-		renderer->print(x, y, fpsText, scale, shadowOffset, textColor);	
+		renderer->print(x-100, y, fpsText, scale, shadowOffset, textColor);	
 	}
 
 #endif
@@ -376,6 +376,9 @@ void SampleCharacterCloth::resetScene()
 	mFrameCount = 0;
 	mAccumulatedSimulationTime = 0.0f;
 	mAverageSimulationTime = 0.0f;
+	mAccumulatedMoveTime = 0.0f;
+	mAverageMoveTime = 0.0f;
+	mMoveCount = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -424,8 +427,13 @@ void SampleCharacterCloth::onTickPostRender(float dtime)
 	if (delta > 1.0f)
 	{
 		mAverageSimulationTime = mAccumulatedSimulationTime / PxReal(mFrameCount);
+		mAverageMoveTime = mAccumulatedMoveTime / PxReal(mMoveCount);
+
 		mFrameCount = 0;
+		mMoveCount = 0;
 		mAccumulatedSimulationTime = 0.0f;
+		mAccumulatedMoveTime = 0.0f;
+
 		mTimer.getElapsedSeconds();
 	}
 }

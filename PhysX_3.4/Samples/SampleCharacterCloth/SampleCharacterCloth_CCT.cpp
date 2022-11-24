@@ -54,6 +54,7 @@
 #include <SamplePlatform.h>
 #include <SampleUserInput.h>
 #include <SampleUserInputDefines.h>
+#include <chrono>
 
 using namespace SampleRenderer;
 using namespace SampleFramework;
@@ -189,7 +190,11 @@ void SampleCharacterCloth::updateCCT(float dtime)
 	mCCTDisplacementPrevStep = dispCurStep;
 	
 	// move the CCT and change jump status due to contact
+	auto start = std::chrono::high_resolution_clock::now();
 	const PxU32 flags = mController->move(dispCurStep, 0.01f, dtime, PxControllerFilters());
+	auto end = std::chrono::high_resolution_clock::now();
+	mAccumulatedMoveTime += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+	mMoveCount++;
 	if(flags & PxControllerCollisionFlag::eCOLLISION_DOWN)
 		mJump.reset();
 

@@ -64,12 +64,14 @@ namespace Gu
 												s, t);
 	}
 
+#if PX_ENABLE_MTD_MOVEMENT
 	PX_PHYSX_COMMON_API bool sweepCapsuleTriangles_WithMTD(PxU32 nbTris, const PxTriangle* PX_RESTRICT triangles,	// Triangle data
 															const PxMTD* mtds,
 															const Capsule& capsule,									// Capsule data
 															const PxVec3& unitDir, const PxReal distance,			// Ray data
 															const PxU32* PX_RESTRICT cachedIndex,					// Cache data
 															PxSweepHit& hit, PxVec3& triNormalOut);					// Results
+#endif
 } // namespace Gu
 
 }
