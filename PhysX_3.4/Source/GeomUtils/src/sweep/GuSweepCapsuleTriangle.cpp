@@ -479,6 +479,9 @@ bool Gu::sweepCapsuleTriangles_WithMTD(PxU32 nbTris, const PxTriangle* PX_RESTRI
 	{
 		const PxU32 i = getTriangleIndex(ii, initIndex);
 
+		if (rejectByMtd(mtds[i], offset))
+			continue;
+
 		const PxTriangle& currentSrcTri = triangles[i];	// PT: src tri, i.e. non-extruded
 
 ///////////// PT: this part comes from "ExtrudeMesh"
@@ -536,9 +539,6 @@ bool Gu::sweepCapsuleTriangles_WithMTD(PxU32 nbTris, const PxTriangle* PX_RESTRI
 		for (PxU32 j = 0; j < nbExtrudedTris; j++)
 		{
 			const PxTriangle& currentTri = extrudedTris[j];
-
-			if (rejectByMtd(mtds[j], offset))
-				continue;
 
 			PxVec3& triNormal = extrudedTrisNormals[j];
 			// Backface culling
