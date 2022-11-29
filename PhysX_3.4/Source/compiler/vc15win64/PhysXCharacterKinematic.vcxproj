@@ -276,6 +276,8 @@
     </ClInclude>
     <ClInclude Include="..\..\PhysXCharacterKinematic\src\CctSweptVolume.h">
     </ClInclude>
+	<ClInclude Include="..\..\PhysXCharacterKinematic\src\CctCacheVolume.h">
+    </ClInclude>
     <ClInclude Include="..\..\PhysXCharacterKinematic\src\CctUtils.h">
     </ClInclude>
     <ClCompile Include="..\..\PhysXCharacterKinematic\src\CctBoxController.cpp">
@@ -297,6 +299,8 @@
     <ClCompile Include="..\..\PhysXCharacterKinematic\src\CctSweptCapsule.cpp">
     </ClCompile>
     <ClCompile Include="..\..\PhysXCharacterKinematic\src\CctSweptVolume.cpp">
+    </ClCompile>
+	<ClCompile Include="..\..\PhysXCharacterKinematic\src\CctCacheVolume.cpp">
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

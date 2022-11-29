@@ -49,7 +49,7 @@ namespace Cct
 {
 	class Controller;
 	class ObstacleContext;
-
+	class CctCacheVolume;
 	struct ObservedRefCounter
 	{
 		ObservedRefCounter(): refCount(0)
@@ -117,6 +117,7 @@ namespace Cct
 						Ps::Array<PxExtendedCapsule>	mCapsules;
 
 						Ps::Array<Controller*>			mControllers;
+						Ps::Array<CctCacheVolume*>		mCacheVolumes;
 						Ps::HashSet<PxShape*>			mCCTShapes;
 
 						Ps::Array<ObstacleContext*>		mObstacleContexts;

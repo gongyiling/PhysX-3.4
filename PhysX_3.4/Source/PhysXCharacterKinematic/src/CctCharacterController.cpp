@@ -50,6 +50,7 @@
 #include "CctInternalStructs.h"		// (*)
 #include "PxControllerManager.h"	// (*)
 #include "PxControllerBehavior.h"	// (*)
+#include "CctCacheVolume.h"
 
 //#define DEBUG_MTD
 #ifdef DEBUG_MTD
@@ -797,7 +798,8 @@ static const PxU32 GeomSizes[] =
 };
 
 #if PX_ENABLE_MTD_MOVEMENT
-static void UpdateMTD(SweepTest* sweep_test, const PxExtendedVec3& center)
+template <typename SweepTestType>
+static void UpdateMTD(SweepTestType* sweep_test, const PxExtendedVec3& center)
 {
 	const PxVec3 offset = center - sweep_test->mMTDCapsuleCenter;
 	MTDArray& Mtd = sweep_test->mMTDs;
@@ -1078,6 +1080,12 @@ void SweepTest::onRelease(const PxBase& observed)
 		mTouchedShape = NULL;
 }
 
+void CctCacheVolume::onRelease(const PxBase& observed)
+{
+	if (ParseGeomStream(&observed, mGeomStream))
+		mCacheBounds.setEmpty();
+}
+
 void SweepTest::updateCachedShapesRegistration(PxU32 startIndex, bool unregister)
 {
 	if(!mRegisterDeletionListener)
@@ -1096,6 +1104,37 @@ void SweepTest::updateCachedShapesRegistration(PxU32 startIndex, bool unregister
 		if (CurrentGeom->mActor)
 		{
 			if(unregister)
+				mCctManager->unregisterObservedObject(reinterpret_cast<const PxBase*>(CurrentGeom->mTGUserData));
+			else
+				mCctManager->registerObservedObject(reinterpret_cast<const PxBase*>(CurrentGeom->mTGUserData));
+		}
+		else
+		{
+			// we can early exit, the rest of the data are user obstacles
+			return;
+		}
+
+		const PxU8* ptr = reinterpret_cast<const PxU8*>(data);
+		ptr += GeomSizes[CurrentGeom->mType];
+		data = reinterpret_cast<const PxU32*>(ptr);
+	}
+}
+
+void CctCacheVolume::updateCachedShapesRegistration(PxU32 startIndex, bool unregister)
+{
+	if (!mGeomStream.size() || startIndex == mGeomStream.size())
+		return;
+
+	PX_ASSERT(startIndex <= mGeomStream.size());
+
+	const PxU32* data = &mGeomStream[startIndex];
+	const PxU32* last = mGeomStream.end();
+	while (data != last)
+	{
+		const TouchedGeom* CurrentGeom = reinterpret_cast<const TouchedGeom*>(data);
+		if (CurrentGeom->mActor)
+		{
+			if (unregister)
 				mCctManager->unregisterObservedObject(reinterpret_cast<const PxBase*>(CurrentGeom->mTGUserData));
 			else
 				mCctManager->registerObservedObject(reinterpret_cast<const PxBase*>(CurrentGeom->mTGUserData));
@@ -1465,6 +1504,128 @@ void SweepTest::updateTouchedGeoms(	const InternalCBData_FindTouchedGeom* userDa
 				out << PxU32(PxDebugColor::eARGB_GREEN);
 			out << DebugBox(getBounds3(mCacheBounds));
 		}
+	}
+}
+
+
+void CctCacheVolume::updateTouchedGeomsCacheVolume(PxScene* scene,
+	const PxExtendedBounds3& worldTemporalBox, PxQueryFilterData sceneQueryFilterData,
+	PxQueryFilterCallback* filterCallback,
+	const PxQuat& quatFromUp,
+	bool bFirstUpdate
+#if PX_ENABLE_MTD_MOVEMENT
+	, const SweptVolume& swept_volume
+#endif
+)
+{
+	/*
+	- if this is the first iteration (new frame) we have to redo the dynamic objects & the CCTs. The static objects can
+	be cached.
+	- if this is not, we can cache everything
+	*/
+
+	// PT: using "worldTemporalBox" instead of "mCacheBounds" seems to produce TTP 6207
+//#define DYNAMIC_BOX	worldTemporalBox
+#define DYNAMIC_BOX	mCacheBounds
+
+	bool newCachedBox = false;
+
+	// PT: detect changes to the static pruning structure
+	bool sceneHasChanged = false;
+	{
+		const PxU32 currentTimestamp = getSceneTimestamp(scene);
+		if (currentTimestamp != mSQTimeStamp)
+		{
+			mSQTimeStamp = currentTimestamp;
+			sceneHasChanged = true;
+		}
+	}
+
+	// If the input box is inside the cached box, nothing to do
+	if (!sceneHasChanged && worldTemporalBox.isInside(mCacheBounds))
+	{
+		//printf("CACHEIN%d\n", mFirstUpdate);
+		if (bFirstUpdate)
+		{
+			// Only redo the dynamic
+			updateCachedShapesRegistration(mNbCachedStatic, true);
+			mGeomStream.forceSize_Unsafe(mNbCachedStatic);
+			mWorldTriangles.forceSize_Unsafe(mNbCachedT);
+			mTriangleIndices.forceSize_Unsafe(mNbCachedT);
+#if PX_ENABLE_MTD_MOVEMENT		
+			mMTDs.forceSize_Unsafe(mNbCachedT);
+			UpdateMTD(this, swept_volume.mCenter);
+#endif
+			sceneQueryFilterData.flags |= PxQueryFlag::eDYNAMIC;
+			sceneQueryFilterData.flags.clear(PxQueryFlag::eSTATIC);
+
+			findTouchedGeometryCacheVolume(scene, DYNAMIC_BOX, mWorldTriangles, mTriangleIndices, mGeomStream, sceneQueryFilterData, filterCallback, quatFromUp
+#if PX_ENABLE_MTD_MOVEMENT
+				, mMTDs, swept_volume
+#endif
+			);
+			updateCachedShapesRegistration(mNbCachedStatic, false);
+		}
+	}
+	else
+	{
+		//printf("CACHEOUTNS=%d\n", mNbCachedStatic);
+		newCachedBox = true;
+
+		// Cache BV used for the query
+		mCacheBounds = worldTemporalBox;
+
+		// Grow the volume a bit. The temporal box here doesn't take sliding & collision response into account.
+		// In bad cases it is possible to eventually touch a portion of space not covered by this volume. Just
+		// in case, we grow the initial volume slightly. Then, additional tests are performed within the loop
+		// to make sure the TBV is always correct. There's a tradeoff between the original (artificial) growth
+		// of the volume, and the number of TBV recomputations performed at runtime...
+		mCacheBounds = calcCacheBounds();
+		//scale(mCacheBounds, PxVec3(mVolumeGrowth));
+		//		scale(mCacheBounds, PxVec3(mVolumeGrowth, 1.0f, mVolumeGrowth));
+		updateCachedShapesRegistration(0, true);
+
+		// Gather triangles touched by this box. This covers multiple meshes.
+		mWorldTriangles.clear();
+		mTriangleIndices.clear();
+#if PX_ENABLE_MTD_MOVEMENT
+		mMTDs.clear();
+#endif
+		mGeomStream.clear();
+		//		mWorldTriangles.reset();
+		//		mTriangleIndices.reset();
+		//		mGeomStream.reset();
+
+		mCachedTriIndexIndex = 0;
+		mCachedTriIndex[0] = mCachedTriIndex[1] = mCachedTriIndex[2] = 0;
+
+		sceneQueryFilterData.flags |= PxQueryFlag::eSTATIC ;
+		sceneQueryFilterData.flags.clear(PxQueryFlag::eDYNAMIC);
+
+		findTouchedGeometryCacheVolume(scene, mCacheBounds, mWorldTriangles, mTriangleIndices, mGeomStream, sceneQueryFilterData, filterCallback, quatFromUp
+#if PX_ENABLE_MTD_MOVEMENT
+			, mMTDs, swept_volume
+#endif
+		);
+
+		mNbCachedStatic = mGeomStream.size();
+		mNbCachedT = mWorldTriangles.size();
+		PX_ASSERT(mTriangleIndices.size() == mNbCachedT);
+
+		sceneQueryFilterData.flags |= PxQueryFlag::eDYNAMIC ;
+		sceneQueryFilterData.flags.clear(PxQueryFlag::eSTATIC);
+
+		findTouchedGeometryCacheVolume(scene, DYNAMIC_BOX, mWorldTriangles, mTriangleIndices, mGeomStream, sceneQueryFilterData, filterCallback, quatFromUp
+#if PX_ENABLE_MTD_MOVEMENT
+			, mMTDs, swept_volume
+#endif
+		);
+		// We can't early exit when no tris are touched since we also have to handle the boxes
+		updateCachedShapesRegistration(0, false);
+#if PX_ENABLE_MTD_MOVEMENT
+		mMTDCapsuleCenter = swept_volume.mCenter;
+#endif
+		//printf("CACHEOUTNSDONE=%d\n", mNbCachedStatic);
 	}
 }
 

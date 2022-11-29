@@ -384,7 +384,6 @@ bool Gu::sweepCapsuleTriangles_WithMTD(PxU32 nbTris, const PxTriangle* PX_RESTRI
 	}
 
 	const PxVec3 capsuleCenter = capsule.computeCenter();
-	const PxVec3 offset = unitDir * distance;
 	if (!mustExtrude)
 	{
 		CapsuleTriangleOverlapData params;
@@ -409,10 +408,7 @@ bool Gu::sweepCapsuleTriangles_WithMTD(PxU32 nbTris, const PxTriangle* PX_RESTRI
 				const PxU32 i = getTriangleIndex(ii, initIndex);
 
 				const PxTriangle& currentTri = triangles[i];
-				if (rejectByMtd(mtds[i], offset))
-					continue;
-
-				if (rejectTriangle(sphereCenter, unitDir, curT, capsule.radius, currentTri.verts, dpc0))
+				if (rejectByMtd(mtds[i], unitDir * curT))
 					continue;
 
 				PxVec3 triNormal;
@@ -479,7 +475,7 @@ bool Gu::sweepCapsuleTriangles_WithMTD(PxU32 nbTris, const PxTriangle* PX_RESTRI
 	{
 		const PxU32 i = getTriangleIndex(ii, initIndex);
 
-		if (rejectByMtd(mtds[i], offset))
+		if (rejectByMtd(mtds[i], unitDir * curT))
 			continue;
 
 		const PxTriangle& currentSrcTri = triangles[i];	// PT: src tri, i.e. non-extruded

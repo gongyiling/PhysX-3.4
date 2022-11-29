@@ -90,7 +90,7 @@ PxRigidStatic* SampleCharacterCloth::buildHeightField()
 	// create a height map
 	gClothRandom.setSeed(42);
 
-	const PxU32 hfSize = 32; // some power of 2
+	const PxU32 hfSize = 128; // some power of 2
 	const PxU32 hfNumVerts = hfSize*hfSize;
 
 	const PxReal hfScale = 8.0f; // this is how wide one heightfield square is

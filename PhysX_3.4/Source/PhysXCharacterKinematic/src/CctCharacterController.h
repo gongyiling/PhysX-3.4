@@ -468,6 +468,7 @@ namespace Cct
 	};
 
 	PxU32 getSceneTimestamp(const InternalCBData_FindTouchedGeom* userData);
+	PxU32 getSceneTimestamp(PxScene* scene);
 
 	void findTouchedGeometry(const InternalCBData_FindTouchedGeom* userData,
 		const PxExtendedBounds3& world_aabb,
@@ -485,8 +486,23 @@ namespace Cct
 #endif
 		);
 
+	void findTouchedGeometryCacheVolume(
+		PxScene* scene,
+		const PxExtendedBounds3& worldBounds,		// ### we should also accept other volumes
+		TriArray& worldTriangles,
+		IntArray& triIndicesArray,
+		IntArray& geomStream,
+		PxQueryFilterData sceneQueryFilterData,
+		PxQueryFilterCallback* filterCallback,
+		const PxQuat& quatFromUp
 #if PX_ENABLE_MTD_MOVEMENT
-	void CalcMTD(const SweptVolume& swept_volumn, const CCTParams& params, const PxTriangle* triangles, const PxTriangle* triangles_end, MTDArray& MtdArray);
+		, MTDArray& MtdArray,
+		const SweptVolume& swept_volumn
+#endif
+	);
+
+#if PX_ENABLE_MTD_MOVEMENT
+	void CalcMTD(const SweptVolume& swept_volumn, const PxQuat& quatFromUp, const PxTriangle* triangles, const PxTriangle* triangles_end, MTDArray& MtdArray);
 #endif
 	PxU32 shapeHitCallback(const InternalCBData_OnHit* userData, const SweptContact& contact, const PxVec3& dir, PxF32 length);
 	PxU32 userHitCallback(const InternalCBData_OnHit* userData, const SweptContact& contact, const PxVec3& dir, PxF32 length);

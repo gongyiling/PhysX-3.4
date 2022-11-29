@@ -40,6 +40,7 @@
 #include "PxScene.h"
 #include "PxPhysics.h"
 #include "PsFoundation.h"
+#include "CctCacheVolume.h"
 
 using namespace physx;
 using namespace Cct;
@@ -241,6 +242,11 @@ void CharacterControllerManager::onRelease(const PxBase* observed, void* , PxDel
 
 			if(mLockingEnabled)
 				controller->mWriteLock.unlock();
+		}
+		for (PxU32 i = 0; i < mCacheVolumes.size(); i++)
+		{
+			CctCacheVolume* Volume = mCacheVolumes[i];
+			Volume->onRelease(*observed);
 		}
 	}
 }

@@ -910,6 +910,12 @@ PxU32 Cct::getSceneTimestamp(const InternalCBData_FindTouchedGeom* userData)
 	return scene->getSceneQueryStaticTimestamp();
 }
 
+PxU32 Cct::getSceneTimestamp(PxScene* scene)
+{
+	PX_ASSERT(scene);
+	return scene->getSceneQueryStaticTimestamp();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void Cct::findTouchedGeometry(
@@ -1007,19 +1013,95 @@ void Cct::findTouchedGeometry(
 		else	if(type==PxGeometryType::ePLANE)		outputPlaneToStream			(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, params, renderBuffer);
 	}
 #if PX_ENABLE_MTD_MOVEMENT
-	CalcMTD(swept_volumn, params, worldTrianglesSize + worldTriangles.begin(), worldTriangles.size() + worldTriangles.begin(), MtdArray);
+	CalcMTD(swept_volumn, params.mQuatFromUp, worldTrianglesSize + worldTriangles.begin(), worldTriangles.size() + worldTriangles.begin(), MtdArray);
+#endif
+}
+
+void Cct::findTouchedGeometryCacheVolume(
+	PxScene* scene,
+	const PxExtendedBounds3& worldBounds,		// ### we should also accept other volumes
+	TriArray& worldTriangles,
+	IntArray& triIndicesArray,
+	IntArray& geomStream,
+	PxQueryFilterData sceneQueryFilterData,
+	PxQueryFilterCallback* filterCallback,
+	const PxQuat& quatFromUp
+#if PX_ENABLE_MTD_MOVEMENT
+	, MTDArray& MtdArray,
+	const SweptVolume& swept_volumn
+#endif
+)
+{
+	PX_ASSERT(scene && filterCallback);
+
+	PX_PROFILE_ZONE("CharacterController.findTouchedGeometry", PxU64(reinterpret_cast<size_t>(scene)));
+	CCTParams dummyParams;
+	dummyParams.mTessellation = false;
+	dummyParams.mInvisibleWallHeight = 0.0f;
+	PxU16 nbTessellation = 0;
+	RenderBuffer* renderBuffer = nullptr;
+
+	PxExtendedVec3 Origin;	// Will be TouchedGeom::mOffset
+	getCenter(worldBounds, Origin);
+
+	// Find touched *boxes* i.e. touched objects' AABBs in the world
+	// We collide against dynamic shapes too, to get back dynamic boxes/etc
+	// TODO: add active groups in interface!
+#if PX_ENABLE_MTD_MOVEMENT
+	const PxU32 worldTrianglesSize = worldTriangles.size();
+#endif
+	// ### this one is dangerous
+	const PxBounds3 tmpBounds(toVec3(worldBounds.minimum), toVec3(worldBounds.maximum));	// LOSS OF ACCURACY
+
+	// PT: unfortunate conversion forced by the PxGeometry API
+	const PxVec3 center = tmpBounds.getCenter();
+	const PxVec3 extents = tmpBounds.getExtents();
+
+	const PxU32 size = 100;
+	PxOverlapHit hits[size];
+
+	PxOverlapBuffer hitBuffer(hits, size);
+	sceneQueryFilterData.flags |= PxQueryFlag::eNO_BLOCK; // fix for DE8255
+	scene->overlap(PxBoxGeometry(extents), PxTransform(center), hitBuffer, sceneQueryFilterData, filterCallback);
+	PxU32 numberHits = hitBuffer.getNbAnyHits();
+	for (PxU32 i = 0; i < numberHits; i++)
+	{
+		const PxOverlapHit& hit = hitBuffer.getAnyHit(i);
+		PxShape* shape = hit.shape;
+		PxRigidActor* actor = hit.actor;
+		if (!shape || !actor)
+			continue;
+
+		// Filtering
+
+		// PT: here you might want to disable kinematic objects.
+
+		// Output shape to stream
+		const PxTransform globalPose = getShapeGlobalPose(*shape, *actor);
+
+		const PxGeometryType::Enum type = shape->getGeometryType();	// ### VIRTUAL!
+		if (type == PxGeometryType::eSPHERE)				outputSphereToStream(shape, actor, globalPose, geomStream, Origin);
+		else	if (type == PxGeometryType::eCAPSULE)		outputCapsuleToStream(shape, actor, globalPose, geomStream, Origin);
+		else	if (type == PxGeometryType::eBOX)			outputBoxToStream(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, dummyParams, nbTessellation);
+		else	if (type == PxGeometryType::eTRIANGLEMESH)	outputMeshToStream(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, dummyParams, renderBuffer, nbTessellation);
+		else	if (type == PxGeometryType::eHEIGHTFIELD)	outputHeightFieldToStream(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, dummyParams, renderBuffer, nbTessellation);
+		else	if (type == PxGeometryType::eCONVEXMESH)	outputConvexToStream(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, dummyParams, renderBuffer, nbTessellation);
+		else	if (type == PxGeometryType::ePLANE)		outputPlaneToStream(shape, actor, globalPose, geomStream, worldTriangles, triIndicesArray, Origin, tmpBounds, dummyParams, renderBuffer);
+	}
+#if PX_ENABLE_MTD_MOVEMENT
+	CalcMTD(swept_volumn, quatFromUp, worldTrianglesSize + worldTriangles.begin(), worldTriangles.size() + worldTriangles.begin(), MtdArray);
 #endif
 }
 
 #if PX_ENABLE_MTD_MOVEMENT
-void Cct::CalcMTD(const SweptVolume& swept_volumn, const CCTParams& params, const PxTriangle* triangles, const PxTriangle* triangles_end, MTDArray& MtdArray)
+void Cct::CalcMTD(const SweptVolume& swept_volumn, const PxQuat& quatFromUp, const PxTriangle* triangles, const PxTriangle* triangles_end, MTDArray& MtdArray)
 {
 	const PxU32 old_size = MtdArray.size();
 	MtdArray.resizeUninitialized(MtdArray.size() + (triangles_end - triangles));
 	PxMTD* mtd = MtdArray.begin() + old_size;
 	const SweptCapsule& swept_capsule = static_cast <const SweptCapsule&> (swept_volumn);
 
-	const PxVec3 rotatedP0 = params.mQuatFromUp.getBasisVector0() * swept_capsule.mHalfHeight;
+	const PxVec3 rotatedP0 = quatFromUp.getBasisVector0() * swept_capsule.mHalfHeight;
 	const Segment meshCapsule(rotatedP0, -rotatedP0);
 	const PxReal radiusSqr = swept_capsule.mRadius * swept_capsule.mRadius;
 	for (; triangles != triangles_end; triangles++)

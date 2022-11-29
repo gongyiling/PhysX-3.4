@@ -132,11 +132,18 @@ namespace physx
 				PxU32							mNbTris;
 				PxReal*							mVerts;
 				PxU32*							mTris;
-
 		///////////////////////////////////////////////////////////////////////////////
 		// Camera and Controller
 				SampleCharacterClothCameraController*		mCCTCamera;
 				PxCapsuleController*			mController;
+				struct RandomController
+				{
+					PxCapsuleController* mController;
+					PxReal	mStartZ;
+					PxReal	mEndZ;
+					bool mForward;
+				};
+				RandomController				mRandomControllers[100];
 				PxControllerManager*			mControllerManager;
 				PxVec3							mControllerInitialPosition;
 				bool                            mCCTActive;

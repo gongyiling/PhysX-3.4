@@ -120,6 +120,19 @@ void SampleCharacterCloth::createCCTController()
 	mCCTCamera = SAMPLE_NEW(SampleCharacterClothCameraController)(*mController, *this);
 
 	setCameraController(mCCTCamera);
+
+	for (int i = 0; i < _countof(mRandomControllers); i++)
+	{
+		bool didHit = scene.raycast(PxVec3(i*4, 100, 0), PxVec3(0, -1, 0), 500.0f, hit, PxHitFlags(0xffff));
+		PX_UNUSED(didHit);
+		PX_ASSERT(didHit);
+		const PxVec3 p = hit.block.position + PxVec3(0.0f, 1.6f, 0.0f);
+		cDesc.position = PxExtendedVec3(p.x, p.y, p.z);
+		mRandomControllers[i].mController = static_cast<PxCapsuleController*>(mControllerManager->createController(cDesc));
+		mRandomControllers[i].mStartZ = p.x;
+		mRandomControllers[i].mEndZ = p.x + 50;
+		mRandomControllers[i].mForward = true;
+	}
 }
 
 
@@ -192,6 +205,26 @@ void SampleCharacterCloth::updateCCT(float dtime)
 	// move the CCT and change jump status due to contact
 	auto start = std::chrono::high_resolution_clock::now();
 	const PxU32 flags = mController->move(dispCurStep, 0.01f, dtime, PxControllerFilters());
+
+	PxReal speed = 2;
+	for (int i = 0; i < 1000; i++)
+	{
+		for (int i = 0; i < _countof(mRandomControllers); i++)
+		{
+			float dir = mRandomControllers[i].mForward ? 1.0f : -1.0f;
+			const PxVec3 disp = PxVec3(0, 0, dtime * speed * dir);
+			const PxU32 flags = mRandomControllers[i].mController->move(disp, 0.01f, dtime, PxControllerFilters());
+			const PxVec3 p = toVec3(mRandomControllers[i].mController->getPosition());
+			if (mRandomControllers[i].mForward && p.z > mRandomControllers[i].mEndZ)
+			{
+				mRandomControllers[i].mForward = false;
+			}
+			else if (!mRandomControllers[i].mForward && p.z < mRandomControllers[i].mStartZ)
+			{
+				mRandomControllers[i].mForward = true;
+			}
+		}
+	}
 	auto end = std::chrono::high_resolution_clock::now();
 	mAccumulatedMoveTime += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 	mMoveCount++;
