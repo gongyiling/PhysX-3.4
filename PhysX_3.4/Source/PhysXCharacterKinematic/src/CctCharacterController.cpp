@@ -1166,14 +1166,14 @@ bool CctCacheVolume::sweep(const PxVec3& unitDir,
 #if PX_ENABLE_MTD_MOVEMENT
 	UpdateMTD(this, pos);
 #endif
-	sweepHit.faceIndex = PX_INVALID_U32;
-	sweepHit.distance = maxDist;
 	bool bHit = false;
-
+	float distance = maxDist;
 	while (Data != Last)
 	{
 		const TouchedGeom* CurrentGeom = reinterpret_cast<const TouchedGeom*>(Data);
 		const PxTransform pose(pos - CurrentGeom->mOffset, rot);
+		PxSweepHit localSweepHit;
+
 		switch (CurrentGeom->mType)
 		{
 		case TouchedGeomType::eUSER_BOX:
@@ -1214,12 +1214,12 @@ bool CctCacheVolume::sweep(const PxVec3& unitDir,
 			bHit = Gu::sweepCapsuleTriangles_WithMTD(nbTris, T,	// Triangle data
 				mMTDs.begin(),
 				capsule,
-				unitDir, sweepHit.distance,
+				unitDir, distance,
 				&CachedIndex,
-				sweepHit, triNormal);
+				localSweepHit, triNormal);
 			if (bHit)
 			{
-				mCachedTriIndex[mCachedTriIndexIndex] = sweepHit.faceIndex;
+				mCachedTriIndex[mCachedTriIndexIndex] = localSweepHit.faceIndex;
 			}
 			break;
 		}
@@ -1228,7 +1228,7 @@ bool CctCacheVolume::sweep(const PxVec3& unitDir,
 			const TouchedBox* touchedBox = static_cast<const TouchedBox*>(CurrentGeom);
 			PxBoxGeometry geom1(touchedBox->mExtents);
 			PxTransform pose1(touchedBox->mCenter, touchedBox->mRot);
-			bHit = PxGeometryQuery::sweep(unitDir, sweepHit.distance, geom0, pose, geom1, pose1, sweepHit, hitFlags, inflation);
+			bHit = PxGeometryQuery::sweep(unitDir, distance, geom0, pose, geom1, pose1, localSweepHit, hitFlags, inflation);
 			break;
 		}
 		case TouchedGeomType::eSPHERE:
@@ -1236,7 +1236,7 @@ bool CctCacheVolume::sweep(const PxVec3& unitDir,
 			const TouchedSphere* touchedSphere = static_cast<const TouchedSphere*>(CurrentGeom);
 			PxSphereGeometry geom1(touchedSphere->mRadius);
 			PxTransform pose1(touchedSphere->mCenter, PxQuat(PxIdentity));
-			bHit = PxGeometryQuery::sweep(unitDir, sweepHit.distance, geom0, pose, geom1, pose1, sweepHit, hitFlags, inflation);
+			bHit = PxGeometryQuery::sweep(unitDir, distance, geom0, pose, geom1, pose1, localSweepHit, hitFlags, inflation);
 			break;
 		}
 		case TouchedGeomType::eCAPSULE:
@@ -1245,7 +1245,7 @@ bool CctCacheVolume::sweep(const PxVec3& unitDir,
 			PxCapsuleGeometry geom1;
 			PxTransform pose1;
 			relocateCapsule(geom1, pose1, touchedCapsule->mP0, touchedCapsule->mP1, touchedCapsule->mRadius);
-			bHit = PxGeometryQuery::sweep(unitDir, sweepHit.distance, geom0, pose, geom1, pose1, sweepHit, hitFlags, inflation);
+			bHit = PxGeometryQuery::sweep(unitDir, distance, geom0, pose, geom1, pose1, localSweepHit, hitFlags, inflation);
 			break;
 		}
 		default:
@@ -1254,9 +1254,14 @@ bool CctCacheVolume::sweep(const PxVec3& unitDir,
 			break;
 		}
 		}
-		if (sweepHit.distance == 0)
+		if (bHit)
 		{
-			return bHit;
+			sweepHit = localSweepHit;
+			distance = localSweepHit.distance;
+			if (distance == 0)
+			{
+				return bHit;
+			}
 		}
 		const PxU8* ptr = reinterpret_cast<const PxU8*>(Data);
 		ptr += GeomSizes[CurrentGeom->mType];
