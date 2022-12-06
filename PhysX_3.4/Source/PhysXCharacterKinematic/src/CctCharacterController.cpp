@@ -1151,6 +1151,120 @@ void CctCacheVolume::updateCachedShapesRegistration(PxU32 startIndex, bool unreg
 	}
 }
 
+bool CctCacheVolume::sweep(const PxVec3& unitDir,
+	const PxReal maxDist,
+	const PxGeometry& geom0,
+	const PxExtendedVec3& pos,
+	const PxQuat& rot,
+	PxSweepHit& sweepHit,
+	PxHitFlags hitFlags,
+	const PxReal inflation)
+{
+	const PxU32* Data = mGeomStream.begin();
+	const PxU32* Last = mGeomStream.end();
+
+#if PX_ENABLE_MTD_MOVEMENT
+	UpdateMTD(this, pos);
+#endif
+	sweepHit.faceIndex = PX_INVALID_U32;
+	sweepHit.distance = maxDist;
+	bool bHit = false;
+
+	while (Data != Last)
+	{
+		const TouchedGeom* CurrentGeom = reinterpret_cast<const TouchedGeom*>(Data);
+		const PxTransform pose(pos - CurrentGeom->mOffset, rot);
+		switch (CurrentGeom->mType)
+		{
+		case TouchedGeomType::eUSER_BOX:
+		case TouchedGeomType::eUSER_CAPSULE:
+		{
+			PX_ASSERT_WITH_MESSAGE(false, "user box and user capsule not supported");
+			break;
+		}
+		case TouchedGeomType::eMESH:
+		{
+			PxSweepHit sweepHit;
+			PxVec3 triNormal;
+			const TouchedMesh* TM = static_cast<const TouchedMesh*>(CurrentGeom);
+
+			PxU32 nbTris = TM->mNbTris;
+			if (!nbTris)
+			{
+				bHit = false;
+				break;
+			}
+
+			PX_ASSERT(geom0.getType() == PxGeometryType::eCAPSULE);
+			const PxCapsuleGeometry& capsuleGeometry = static_cast<const PxCapsuleGeometry&>(geom0);
+			Capsule capsule;
+			const PxVec3 tmp = rot.getBasisVector0() * capsuleGeometry.halfHeight;
+			capsule.p0 = pose.p + tmp;
+			capsule.p1 = pose.p - tmp;
+			capsule.radius = capsuleGeometry.radius;
+
+			// Fetch triangle data for current mesh (the stream may contain triangles from multiple meshes)
+			const PxTriangle* T = &mWorldTriangles.getTriangle(TM->mIndexWorldTriangles);
+
+			// PT: this only really works when the CCT collides with a single mesh, but that's the most common case.
+			// When it doesn't, there's just no speedup but it still works.
+			PxU32 CachedIndex = mCachedTriIndex[mCachedTriIndexIndex];
+			if (CachedIndex >= nbTris)
+				CachedIndex = 0;
+			bHit = Gu::sweepCapsuleTriangles_WithMTD(nbTris, T,	// Triangle data
+				mMTDs.begin(),
+				capsule,
+				unitDir, sweepHit.distance,
+				&CachedIndex,
+				sweepHit, triNormal);
+			if (bHit)
+			{
+				mCachedTriIndex[mCachedTriIndexIndex] = sweepHit.faceIndex;
+			}
+			break;
+		}
+		case TouchedGeomType::eBOX:
+		{
+			const TouchedBox* touchedBox = static_cast<const TouchedBox*>(CurrentGeom);
+			PxBoxGeometry geom1(touchedBox->mExtents);
+			PxTransform pose1(touchedBox->mCenter, touchedBox->mRot);
+			bHit = PxGeometryQuery::sweep(unitDir, sweepHit.distance, geom0, pose, geom1, pose1, sweepHit, hitFlags, inflation);
+			break;
+		}
+		case TouchedGeomType::eSPHERE:
+		{
+			const TouchedSphere* touchedSphere = static_cast<const TouchedSphere*>(CurrentGeom);
+			PxSphereGeometry geom1(touchedSphere->mRadius);
+			PxTransform pose1(touchedSphere->mCenter, PxQuat(PxIdentity));
+			bHit = PxGeometryQuery::sweep(unitDir, sweepHit.distance, geom0, pose, geom1, pose1, sweepHit, hitFlags, inflation);
+			break;
+		}
+		case TouchedGeomType::eCAPSULE:
+		{
+			const TouchedCapsule* touchedCapsule = static_cast<const TouchedCapsule*>(CurrentGeom);
+			PxCapsuleGeometry geom1;
+			PxTransform pose1;
+			relocateCapsule(geom1, pose1, touchedCapsule->mP0, touchedCapsule->mP1, touchedCapsule->mRadius);
+			bHit = PxGeometryQuery::sweep(unitDir, sweepHit.distance, geom0, pose, geom1, pose1, sweepHit, hitFlags, inflation);
+			break;
+		}
+		default:
+		{
+			PX_ASSERT_WITH_MESSAGE(false, "invalid touched geo type");
+			break;
+		}
+		}
+		if (sweepHit.distance == 0)
+		{
+			return bHit;
+		}
+		const PxU8* ptr = reinterpret_cast<const PxU8*>(Data);
+		ptr += GeomSizes[CurrentGeom->mType];
+		Data = reinterpret_cast<const PxU32*>(ptr);
+	}
+	return bHit;
+}
+
 void SweepTest::onObstacleAdded(ObstacleHandle index, const PxObstacleContext* context, const PxVec3& origin, const PxVec3& unitDir, const PxReal distance )
 {
 	if(mTouchedObstacleHandle != INVALID_OBSTACLE_HANDLE)
