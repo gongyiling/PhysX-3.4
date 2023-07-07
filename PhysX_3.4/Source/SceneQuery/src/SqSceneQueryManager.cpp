@@ -110,8 +110,6 @@ void PrunerExt::flushShapes(PxU32 index)
 		return;
 	const PrunerHandle* const prunerHandles = mDirtyList.begin();
 
-	const ComputeBoundsFunc func = gComputeBoundsTable[index];
-
 	for(PxU32 i=0; i<numDirtyList; i++)
 	{
 		const PrunerHandle handle = prunerHandles[i];
@@ -121,7 +119,12 @@ void PrunerExt::flushShapes(PxU32 index)
 		// to take advantage of batching.
 		PxBounds3* bounds;
 		const PrunerPayload& pp = mPruner->getPayload(handle, bounds);
-		(func)(*bounds, *(reinterpret_cast<Scb::Shape*>(pp.data[0])), *(reinterpret_cast<Scb::Actor*>(pp.data[1])));
+
+		Scb::Actor& Actor = *(reinterpret_cast<Scb::Actor*>(pp.data[1]));
+		const bool isDynamic = Actor.getActorType() == PxActorType::eRIGID_DYNAMIC;
+		const ComputeBoundsFunc func = gComputeBoundsTable[isDynamic];
+
+		(func)(*bounds, *(reinterpret_cast<Scb::Shape*>(pp.data[0])), Actor);
 	}
 	// PT: batch update happens after the loop instead of once per loop iteration
 	mPruner->updateObjectsAfterManualBoundsUpdates(prunerHandles, numDirtyList);

@@ -218,7 +218,11 @@ void NpShapeManager::setupAllSceneQuery(NpScene* scene, const PxRigidActor& acto
 	NpShape*const *shapes = getShapes();
 
 	const PxType actorType = actor.getConcreteType();
-	const bool isDynamic = actorType == PxConcreteType::eRIGID_DYNAMIC || actorType == PxConcreteType::eARTICULATION_LINK;
+	bool isDynamic = actorType == PxConcreteType::eRIGID_DYNAMIC || actorType == PxConcreteType::eARTICULATION_LINK;
+	if (sqManager.getScene().getFlags().isSet(PxSceneFlag::eSQ_FREEZE_STATIC_TREE))
+	{
+		isDynamic = true;
+	}
 
 	for(PxU32 i=0;i<nbShapes;i++)
 	{
@@ -268,7 +272,11 @@ Sq::PrunerData NpShapeManager::findSceneQueryData(const NpShape& shape) const
 void NpShapeManager::setupSceneQuery(SceneQueryManager& sqManager, const PxRigidActor& actor, PxU32 index)
 { 
 	const PxType actorType = actor.getConcreteType();
-	const bool isDynamic = actorType == PxConcreteType::eRIGID_DYNAMIC || actorType == PxConcreteType::eARTICULATION_LINK;
+	bool isDynamic = actorType == PxConcreteType::eRIGID_DYNAMIC || actorType == PxConcreteType::eARTICULATION_LINK;
+	if (sqManager.getScene().getFlags().isSet(PxSceneFlag::eSQ_FREEZE_STATIC_TREE))
+	{
+		isDynamic = true;
+	}
 	setPrunerData(index, sqManager.addPrunerShape(*(getShapes()[index]), actor, isDynamic));
 }
 
