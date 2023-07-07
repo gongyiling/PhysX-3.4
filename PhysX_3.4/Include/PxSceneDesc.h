@@ -101,7 +101,8 @@ struct PxSceneQueryUpdateMode
 	{
 		eBUILD_ENABLED_COMMIT_ENABLED,		//!< Both scene query build and commit are executed.
 		eBUILD_ENABLED_COMMIT_DISABLED,		//!< Scene query build only is executed.
-		eBUILD_DISABLED_COMMIT_DISABLED		//!< No work is done, no update of scene queries
+		eBUILD_DISABLED_COMMIT_DISABLED,		//!< No work is done, no update of scene queries
+		eBUILD_STATIC_DISABLED_COMMIT_ENABLED,
 	};
 };
 

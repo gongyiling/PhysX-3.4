@@ -41,7 +41,7 @@
 #include "../SnippetCommon/SnippetPrint.h"
 #include "../SnippetCommon/SnippetPVD.h"
 #include "../SnippetUtils/SnippetUtils.h"
-
+#include <iostream>
 
 using namespace physx;
 
@@ -86,6 +86,29 @@ void createStack(const PxTransform& t, PxU32 size, PxReal halfExtent)
 	shape->release();
 }
 
+struct RaycastCallback : PxRaycastCallback 
+{
+	using PxRaycastCallback::PxRaycastCallback;
+	virtual PxAgain processTouches(const PxRaycastHit* buffer, PxU32 nbHits) override
+	{
+		return true;
+	}
+};
+
+PxRigidDynamic* PxCreateDynamic(PxPhysics& sdk,
+	const PxTransform& transform,
+	PxShape& shape,
+	PxReal density)
+{
+	PxRigidDynamic* actor = sdk.createRigidDynamic(transform);
+	if (actor)
+	{
+		actor->attachShape(shape);
+		PxRigidBodyExt::updateMassAndInertia(*actor, density);
+	}
+	return actor;
+}
+
 void initPhysics(bool interactive)
 {
 	gFoundation = PxCreateFoundation(PX_FOUNDATION_VERSION, gAllocator, gErrorCallback);
@@ -112,14 +135,43 @@ void initPhysics(bool interactive)
 	}
 	gMaterial = gPhysics->createMaterial(0.5f, 0.5f, 0.6f);
 
-	PxRigidStatic* groundPlane = PxCreatePlane(*gPhysics, PxPlane(0,1,0,0), *gMaterial);
+	PxRigidStatic * groundPlane = PxCreatePlane(*gPhysics, PxPlane(0, 1, 0, 0), *gMaterial);
 	gScene->addActor(*groundPlane);
+
+	PxTransform Transform = groundPlane->getGlobalPose();
+
+	//groundPlane->setGlobalPose(PxTransform(PxVec3(0, 1, 0)));
+
 
 	for(PxU32 i=0;i<5;i++)
 		createStack(PxTransform(PxVec3(0,0,stackZ-=10.0f)), 10, 2.0f);
 
 	if(!interactive)
 		createDynamic(PxTransform(PxVec3(0,40,100)), PxSphereGeometry(10), PxVec3(0,-50,-100));
+
+
+	PxRaycastHit hits[128];
+	RaycastCallback callback(hits, 128);
+	if (gScene->raycast(PxVec3(0, 100, 0), PxVec3(0, -1, 0), 1000, callback))
+	{
+		std::cout << "hit " << hits[0].distance << std::endl;
+	}
+	else
+	{
+		std::cout << "miss" << std::endl;
+	}
+
+	Transform.p = PxVec3(0, -50, 0);
+	groundPlane->setGlobalPose(Transform);
+
+	if (gScene->raycast(PxVec3(0, 100, 0), PxVec3(0, -1, 0), 1000, callback))
+	{
+		std::cout << "hit " << hits[0].distance << std::endl;
+	}
+	else
+	{
+		std::cout << "miss" << std::endl;
+	}
 }
 
 void stepPhysics(bool interactive)

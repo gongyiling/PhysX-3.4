@@ -353,11 +353,12 @@ void SceneQueryManager::afterSync(PxSceneQueryUpdateMode::Enum updateMode)
 	// flush user modified objects
 	flushShapes();
 
-	bool commit = updateMode == PxSceneQueryUpdateMode::eBUILD_ENABLED_COMMIT_ENABLED;
+	bool commit = updateMode == PxSceneQueryUpdateMode::eBUILD_ENABLED_COMMIT_ENABLED || updateMode == PxSceneQueryUpdateMode::eBUILD_STATIC_DISABLED_COMMIT_ENABLED;
 
-	for(PxU32 i = 0; i<2; i++)
+	for(PxU32 i = 0; i< PruningIndex::eCOUNT; i++)
 	{
-		if(mPrunerExt[i].pruner() && mPrunerExt[i].type() == PxPruningStructureType::eDYNAMIC_AABB_TREE)
+		const bool staticDisable = updateMode == PxSceneQueryUpdateMode::eBUILD_STATIC_DISABLED_COMMIT_ENABLED && i == PruningIndex::eSTATIC;
+		if (mPrunerExt[i].pruner() && mPrunerExt[i].type() == PxPruningStructureType::eDYNAMIC_AABB_TREE && !staticDisable)
 			static_cast<AABBPruner*>(mPrunerExt[i].pruner())->buildStep(true);
 
 		if(commit)
