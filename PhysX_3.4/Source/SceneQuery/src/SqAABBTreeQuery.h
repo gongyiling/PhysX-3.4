@@ -231,6 +231,181 @@ namespace physx
 				return true;
 			}
 		};
+
+
+		//////////////////////////////////////////////////////////////////////////
+		struct Ray
+		{
+			PxVec3 origin;
+			PxVec3 inflation;
+			PxReal maxDist;
+
+			PxReal oldMaxDist;
+			PxReal md;
+			bool canExit = false;
+		};
+
+		enum RayDirection
+		{
+			RD_PosX,
+			RD_NegX,
+			RD_PosY,
+			RD_NegY,
+			RD_PosZ,
+			RD_NegZ,
+		};
+
+		struct BatchRay
+		{
+			shdfnd::Array<Ray*> rays;
+			RayDirection direction;
+			bool hasCanExit = false;
+
+			template<bool TInflate>
+			PX_FORCE_INLINE void check(const Vec3V center, const Vec3V extents) const
+			{
+		
+			}
+
+			void filter()
+			{
+				if (!hasCanExit)
+				{
+					return;
+				}
+				shdfnd::Array<Ray*> newRays;
+				for (uint32_t i = 0; i < rays.size(); i++)
+				{
+					if (!rays[i]->canExit)
+					{
+						newRays.pushBack(rays[i]);
+					}
+				}
+				newRays.swap(rays);
+			}
+
+			bool hasRay() const
+			{
+				return !rays.empty();
+			}
+
+			void cacheMaxDist()
+			{
+				for (uint32_t i = 0; i < rays.size(); i++)
+				{
+					Ray* ray = rays[i];
+					ray->oldMaxDist = ray->md = ray->maxDist;
+				}
+			}
+
+			void setCanExit(Ray* ray)
+			{
+				ray->canExit = true;
+				hasCanExit = true;
+			}
+		};
+
+		template <bool tInflate, typename Tree, typename Node> // use inflate=true for sweeps, inflate=false for raycasts
+		class AABBTreeBatchRaycast
+		{
+		public:
+
+			struct BatchRaycastSharedParams
+			{
+				BatchRaycastSharedParams(const PrunerPayload* inObjects, const PxBounds3* inBoxes, const Tree& inTree, PrunerCallback& inPcb)
+				: objects(inObjects)
+				, boxes(inBoxes)
+				, tree(inTree)
+				, pcb(inPcb)
+				{
+					
+				}
+
+				const PrunerPayload* objects;
+				const PxBounds3* boxes;
+				const Tree& tree;
+				PrunerCallback& pcb;
+			};
+
+			static PX_FORCE_INLINE void doLeafTest(const Node* node, const BatchRaycastSharedParams& sharedParams, BatchRay test)
+			{
+				PxU32 nbPrims = node->getNbPrimitives();
+				const bool doBoxTest = nbPrims > 1;
+				const PxU32* prims = node->getPrimitives(sharedParams.tree.getIndices());
+				while (nbPrims--)
+				{
+					const PxU32* prunableIndex = prims;
+					prims++;
+
+					const PoolIndex poolIndex = *prunableIndex;
+					if (doBoxTest)
+					{
+						Vec4V center_, extents_;
+						getBoundsTimesTwo(center_, extents_, sharedParams.boxes, poolIndex);
+						test.check<tInflate>(Vec3V_From_Vec4V(center_), Vec3V_From_Vec4V(extents_));
+						test.filter();
+					}
+
+					for (uint32_t i = 0; i < test.rays.size(); i++)
+					{
+						Ray* ray = test.rays[i];
+						if (!sharedParams.pcb.invoke(ray->md, sharedParams.objects[poolIndex]))
+						{
+							test.setCanExit(ray);
+						}
+						else if (ray->md < ray->oldMaxDist)
+						{
+							ray->maxDist = ray->md;
+						}
+					}
+
+					test.filter();
+					if (!test.hasRay())
+					{
+						break;
+					}
+				}
+			}
+
+			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, BatchRay& batchRay, const Node* node)
+			{
+				Vec3V center, extents;
+				node->getAABBCenterExtentsV2(&center, &extents);
+				batchRay.check<tInflate>(center, extents);
+				batchRay.filter();
+				if (batchRay.hasRay())
+				{
+					if(!node->isLeaf())
+					{
+						const Node* const nodeBase = sharedParams.tree.getNodes();
+						const Node* children = node->getPos(nodeBase);
+						doBatchRaycast(sharedParams, batchRay, &children[0]);
+						if (batchRay.hasRay())
+						{
+							doBatchRaycast(sharedParams, batchRay, &children[1]);
+						}
+					}
+					else
+					{
+						batchRay.cacheMaxDist();
+						doLeafTest(sharedParams, node, batchRay);
+					}
+				}
+			}
+
+			bool operator()(
+				const PrunerPayload* objects, const PxBounds3* boxes, const Tree& tree,
+				BatchRay& batchRay,
+				PrunerCallback& pcb)
+			{
+				using namespace Cm;
+
+				const Node* const nodeBase = tree.getNodes();
+				BatchRaycastSharedParams sharedParams(objects, boxes, tree, pcb);
+				doBatchRaycast(sharedParams, batchRay, nodeBase);
+				return batchRay.hasRay();
+			}
+		};
 	}
 }
 
