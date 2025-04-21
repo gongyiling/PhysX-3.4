@@ -255,25 +255,125 @@ namespace physx
 			RD_NegZ,
 		};
 
+		union Vec3U
+		{
+			Vec3V v;    // SSE 4 x float vector
+			float a[4];  // scalar array of 4 floats
+		};
+
 		struct BatchRay
 		{
-			shdfnd::Array<Ray*> rays;
-			RayDirection direction;
+			using RayArray = shdfnd::InlineArray<Ray*, 16>;
+			RayArray rays;
 			bool hasCanExit = false;
 
-			template<bool TInflate>
-			PX_FORCE_INLINE void check(const Vec3V center, const Vec3V extents) const
+			PX_FORCE_INLINE static bool intersect(PxReal x1Min, PxReal x1Max, PxReal x2Min, PxReal x2Max)
 			{
-		
+				return !(x1Max < x2Min || x2Max < x1Min);
 			}
 
-			void filter()
+			PX_FORCE_INLINE static bool intersect(PxReal x1, PxReal x2Min, PxReal x2Max)
+			{
+				return x1 >= x2Min && x1 <= x2Max;
+			}
+
+			template<bool TInflate, RayDirection Direction>
+			PX_FORCE_INLINE void check(const Vec3V center, const Vec3V extents) const
+			{
+				Vec3U c;
+				c.v = center;
+				for (uint32_t i = 0; i < rays.size(); i++)
+				{
+					Ray& ray = *rays[i];
+					Vec3U e;
+					e.v = TInflate ? V3Add(extents, V3LoadU(ray.inflation)) : extents;
+					const PxVec3& o = ray.origin;
+					PxReal minBox, maxBox, minRay, maxRay;
+					PxReal secondAxis, minSecondAxis, maxSecondAxis;
+					PxReal thirdAxis, minThirdAxis, maxThirdAxis;
+
+					if (Direction == RD_PosX || Direction == RD_NegX)
+					{
+						minBox = c.a[0] - e.a[0];
+						maxBox = c.a[0] + e.a[0];
+						if (Direction == RD_PosX)
+						{
+							minRay = o.x;
+							maxRay = o.x + ray.maxDist;
+						}
+						else
+						{
+							minRay = o.x - ray.maxDist;
+							maxRay = o.x;
+						}
+						secondAxis = o.y;
+						minSecondAxis = c.a[1] - e.a[1];
+						maxSecondAxis = c.a[1] + e.a[1];
+
+						thirdAxis = o.z;
+						minThirdAxis = c.a[2] - e.a[2];
+						maxThirdAxis = c.a[2] + e.a[2];
+					}
+					else if (Direction == RD_PosY || Direction == RD_NegY)
+					{
+						minBox = c.a[1] - e.a[1];
+						maxBox = c.a[1] + e.a[1];
+						if (Direction == RD_PosY)
+						{
+							minRay = o.y;
+							maxRay = o.y + ray.maxDist;
+						}
+						else
+						{
+							minRay = o.y - ray.maxDist;
+							maxRay = o.y;
+						}
+						secondAxis = o.x;
+						minSecondAxis = c.a[0] - e.a[0];
+						maxSecondAxis = c.a[0] + e.a[0];
+
+						thirdAxis = o.z;
+						minThirdAxis = c.a[2] - e.a[2];
+						maxThirdAxis = c.a[2] + e.a[2];
+					}
+					else
+					{
+						minBox = c.a[2] - e.a[2];
+						maxBox = c.a[2] + e.a[2];
+						if (Direction == RD_PosZ)
+						{
+							minRay = o.z;
+							maxRay = o.z + ray.maxDist;
+						}
+						else
+						{
+							minRay = o.z - ray.maxDist;
+							maxRay = o.z;
+						}
+						secondAxis = o.x;
+						minSecondAxis = c.a[0] - e.a[0];
+						maxSecondAxis = c.a[0] + e.a[0];
+
+						thirdAxis = o.y;
+						minThirdAxis = c.a[1] - e.a[1];
+						maxThirdAxis = c.a[1] + e.a[1];
+					}
+
+					const bool isIntersect = intersect(minBox, maxBox, minRay, maxRay)
+						&& intersect(secondAxis, minSecondAxis, maxSecondAxis)
+						&& intersect(thirdAxis, minThirdAxis, maxThirdAxis);
+
+					ray.canExit = !isIntersect;
+				}
+			}
+
+			bool filter()
 			{
 				if (!hasCanExit)
 				{
-					return;
+					return hasRay();
 				}
-				shdfnd::Array<Ray*> newRays;
+				RayArray newRays;
 				for (uint32_t i = 0; i < rays.size(); i++)
 				{
 					if (!rays[i]->canExit)
@@ -281,7 +381,8 @@ namespace physx
 						newRays.pushBack(rays[i]);
 					}
 				}
-				newRays.swap(rays);
+				rays = newRays;
+				return hasRay();
 			}
 
 			bool hasRay() const
@@ -305,7 +406,7 @@ namespace physx
 			}
 		};
 
-		template <bool tInflate, typename Tree, typename Node> // use inflate=true for sweeps, inflate=false for raycasts
+		template <bool tInflate, RayDirection Direction, typename Tree, typename Node> // use inflate=true for sweeps, inflate=false for raycasts
 		class AABBTreeBatchRaycast
 		{
 		public:
@@ -342,7 +443,7 @@ namespace physx
 					{
 						Vec4V center_, extents_;
 						getBoundsTimesTwo(center_, extents_, sharedParams.boxes, poolIndex);
-						test.check<tInflate>(Vec3V_From_Vec4V(center_), Vec3V_From_Vec4V(extents_));
+						test.check<tInflate, Direction>(Vec3V_From_Vec4V(center_), Vec3V_From_Vec4V(extents_));
 						test.filter();
 					}
 
@@ -359,28 +460,26 @@ namespace physx
 						}
 					}
 
-					test.filter();
-					if (!test.hasRay())
+					if (!test.filter())
 					{
 						break;
 					}
 				}
 			}
 
-			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, BatchRay& batchRay, const Node* node)
+			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, BatchRay batchRay, const Node* node)
 			{
-				Vec3V center, extents;
+				Vec3U center, extents;
 				node->getAABBCenterExtentsV2(&center, &extents);
-				batchRay.check<tInflate>(center, extents);
-				batchRay.filter();
-				if (batchRay.hasRay())
+				batchRay.check<tInflate, Direction>(center, extents);
+				if (batchRay.filter())
 				{
 					if(!node->isLeaf())
 					{
 						const Node* const nodeBase = sharedParams.tree.getNodes();
 						const Node* children = node->getPos(nodeBase);
 						doBatchRaycast(sharedParams, batchRay, &children[0]);
-						if (batchRay.hasRay())
+						if (batchRay.filter())
 						{
 							doBatchRaycast(sharedParams, batchRay, &children[1]);
 						}
