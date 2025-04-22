@@ -387,6 +387,11 @@ static const PxU32 PREFERED_MAX_RAYCAST_BATCH_SIZE = 8;
 
 struct PxRay
 {
+	PxRay(PxRaycastCallback* h, const PxVec3& o, PxReal d)
+		: hitCall(h)
+		, origin(o)
+		, distance(d)
+	{}
 	PxRaycastCallback* hitCall;
 	PxVec3 origin;
 	PxReal distance;

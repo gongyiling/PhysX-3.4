@@ -42,6 +42,9 @@
 #include "../SnippetCommon/SnippetPVD.h"
 #include "../SnippetUtils/SnippetUtils.h"
 #include <iostream>
+#include <array>
+#include <PsArray.h>
+#include <vector>
 
 using namespace physx;
 
@@ -91,8 +94,14 @@ struct RaycastCallback : PxRaycastCallback
 	using PxRaycastCallback::PxRaycastCallback;
 	virtual PxAgain processTouches(const PxRaycastHit* buffer, PxU32 nbHits) override
 	{
+		for (PxU32 i = 0; i < nbHits; i++)
+		{
+			hits.pushBack(buffer[i]);
+		}
 		return true;
 	}
+	shdfnd::Array<PxRaycastHit> hits;
+	PX_FORCE_INLINE bool hasAnyHitsEx() { return PxRaycastCallback::hasAnyHits() || !hits.empty(); }
 };
 
 PxRigidDynamic* PxCreateDynamic(PxPhysics& sdk,
@@ -107,6 +116,85 @@ PxRigidDynamic* PxCreateDynamic(PxPhysics& sdk,
 		PxRigidBodyExt::updateMassAndInertia(*actor, density);
 	}
 	return actor;
+}
+
+static void checkHit(const PxRaycastHit& a, const PxRaycastHit& b)
+{
+	PX_ASSERT(a.distance == b.distance);
+	PX_ASSERT(a.normal == b.normal);
+	PX_ASSERT(a.position == b.position);
+
+	PX_ASSERT(a.actor == b.actor);
+	PX_ASSERT(a.shape == b.shape);
+
+	PX_ASSERT(a.flags == b.flags);
+}
+
+static void checkCallback(const RaycastCallback& a, const RaycastCallback& b)
+{
+	PX_ASSERT(a.hasBlock == b.hasBlock)
+	if (a.hasBlock)
+	{
+		checkHit(a.block, b.block);
+	}
+	PX_ASSERT(a.hits.size() == b.hits.size());
+	for (PxU32 i = 0; i < a.hits.size(); i++)
+	{
+		checkHit(a.hits[i], b.hits[i]);
+	}
+}
+
+struct RaycastHitArray
+{
+	PxRaycastHit hits[128];
+};
+
+static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& dir, PxReal dist, bool block, bool anyHit)
+{
+	std::vector<RaycastHitArray> hits;
+	hits.resize(numOrigin);
+
+	shdfnd::Array<RaycastCallback> callbacks;
+	callbacks.resizeUninitialized(numOrigin);
+
+	shdfnd::Array<PxRay> rays;
+	rays.resizeUninitialized(numOrigin);
+
+	for (PxU32 i = 0; i < numOrigin; i++)
+	{
+		if (block)
+		{
+			RaycastCallback* callback = new (&callbacks[i]) RaycastCallback(nullptr, 0);
+			new (&rays[i]) PxRay(callback, origin[i], dist);
+		}
+		else
+		{
+			RaycastCallback* callback = new (&callbacks[i]) RaycastCallback(hits[i].hits, 128);
+			new (&rays[i]) PxRay(callback, origin[i], dist);
+		}
+	}
+	PxQueryFilterData queryFilterData;
+	if (anyHit)
+	{
+		queryFilterData.flags |= PxQueryFlag::eANY_HIT;
+	}
+	gScene->batchRaycast(rays.begin(), rays.end(), dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+
+	for (PxU32 i = 0; i < numOrigin; i++)
+	{
+		RaycastHitArray hit;
+		RaycastCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
+		gScene->raycast(origin[i], dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+		checkCallback(callback, callbacks[i]);
+	}
+}
+
+static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& dir, PxReal dist)
+{
+	testBatchQuery(origin, numOrigin, dir, dist, true, true);
+	testBatchQuery(origin, numOrigin, dir, dist, true, false);
+	testBatchQuery(origin, numOrigin, dir, dist, false, true);
+	testBatchQuery(origin, numOrigin, dir, dist, false, false);
 }
 
 void initPhysics(bool interactive)
@@ -142,36 +230,46 @@ void initPhysics(bool interactive)
 
 	//groundPlane->setGlobalPose(PxTransform(PxVec3(0, 1, 0)));
 
-
 	for(PxU32 i=0;i<5;i++)
 		createStack(PxTransform(PxVec3(0,0,stackZ-=10.0f)), 10, 2.0f);
 
 	if(!interactive)
 		createDynamic(PxTransform(PxVec3(0,40,100)), PxSphereGeometry(10), PxVec3(0,-50,-100));
+	
+	std::vector<PxVec3> origins;
 
-
-	PxRaycastHit hits[128];
-	RaycastCallback callback(hits, 128);
-	if (gScene->raycast(PxVec3(0, 100, 0), PxVec3(0, -1, 0), 1000, callback))
+	for (PxI32 x = -300; x < 300; x += 10)
 	{
-		std::cout << "hit " << hits[0].distance << std::endl;
+		for (PxI32 y = -300; y < 300; y += 10)
+		{
+			for (PxI32 z = -300; z < 300; z += 10)
+			{
+				origins.emplace_back(PxVec3(x, y, z));
+			}
+		}
 	}
-	else
+	std::vector<PxReal> distances = {10, 100, 1000};
+
+	std::vector<PxVec3> dirs = {
+		PxVec3(0, 0, 1)
+		, PxVec3(0, 0, -1)
+		, PxVec3(0, 1, 0)
+		, PxVec3(0, -1, 0)
+		, PxVec3(1, 0, 0)
+		, PxVec3(-1, 0, 0)
+	};
+	
+	for (PxU32 i = 0; i < distances.size(); i++)
 	{
-		std::cout << "miss" << std::endl;
+		for (PxU32 j = 0; j < origins.size(); j++)
+		{
+			testBatchQuery(origins.data(), origins.size(), dirs[j], distances[i]);
+		}
 	}
 
 	Transform.p = PxVec3(0, -50, 0);
 	groundPlane->setGlobalPose(Transform);
 
-	if (gScene->raycast(PxVec3(0, 100, 0), PxVec3(0, -1, 0), 1000, callback))
-	{
-		std::cout << "hit " << hits[0].distance << std::endl;
-	}
-	else
-	{
-		std::cout << "miss" << std::endl;
-	}
 }
 
 void stepPhysics(bool interactive)
