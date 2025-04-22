@@ -31,6 +31,7 @@
 #define SQ_AABBTREEQUERY_H
 
 #include "SqAABBTree.h"
+#include "SqPruner.h"
 #include "SqPrunerTestsSIMD.h"
 
 namespace physx
@@ -234,26 +235,7 @@ namespace physx
 
 
 		//////////////////////////////////////////////////////////////////////////
-		struct Ray
-		{
-			PxVec3 origin;
-			PxVec3 inflation;
-			PxReal maxDist;
 
-			PxReal oldMaxDist;
-			PxReal md;
-			bool canExit = false;
-		};
-
-		enum RayDirection
-		{
-			RD_PosX,
-			RD_NegX,
-			RD_PosY,
-			RD_NegY,
-			RD_PosZ,
-			RD_NegZ,
-		};
 
 		union Vec3U
 		{
@@ -263,9 +245,7 @@ namespace physx
 
 		struct BatchRay
 		{
-			using RayArray = shdfnd::InlineArray<Ray*, 16>;
-			RayArray rays;
-			bool hasCanExit = false;
+			SqRayPtrArray rays;
 
 			PX_FORCE_INLINE static bool intersect(PxReal x1Min, PxReal x1Max, PxReal x2Min, PxReal x2Max)
 			{
@@ -277,26 +257,28 @@ namespace physx
 				return x1 >= x2Min && x1 <= x2Max;
 			}
 
-			template<bool TInflate, RayDirection Direction>
-			PX_FORCE_INLINE void check(const Vec3V center, const Vec3V extents) const
+			template<bool TInflate, SqRayDirection Direction>
+			PX_FORCE_INLINE SqRayPtrArray check(const Vec3V center, const Vec3V extents)
 			{
 				Vec3U c;
 				c.v = center;
-				for (uint32_t i = 0; i < rays.size(); i++)
+				SqRayPtrArray filteredRays;
+				for (uint32_t i = 0; i < rays.size();)
 				{
-					Ray& ray = *rays[i];
+					SqRay& ray = *rays[i];
+					PX_ASSERT(!ray.canExit);
 					Vec3U e;
 					e.v = TInflate ? V3Add(extents, V3LoadU(ray.inflation)) : extents;
-					const PxVec3& o = ray.origin;
+					const PxVec3& o = ray.pxRay->origin;
 					PxReal minBox, maxBox, minRay, maxRay;
 					PxReal secondAxis, minSecondAxis, maxSecondAxis;
 					PxReal thirdAxis, minThirdAxis, maxThirdAxis;
 
-					if (Direction == RD_PosX || Direction == RD_NegX)
+					if (Direction == SRD_PosX || Direction == SRD_NegX)
 					{
 						minBox = c.a[0] - e.a[0];
 						maxBox = c.a[0] + e.a[0];
-						if (Direction == RD_PosX)
+						if (Direction == SRD_PosX)
 						{
 							minRay = o.x;
 							maxRay = o.x + ray.maxDist;
@@ -314,11 +296,11 @@ namespace physx
 						minThirdAxis = c.a[2] - e.a[2];
 						maxThirdAxis = c.a[2] + e.a[2];
 					}
-					else if (Direction == RD_PosY || Direction == RD_NegY)
+					else if (Direction == SRD_PosY || Direction == SRD_NegY)
 					{
 						minBox = c.a[1] - e.a[1];
 						maxBox = c.a[1] + e.a[1];
-						if (Direction == RD_PosY)
+						if (Direction == SRD_PosY)
 						{
 							minRay = o.y;
 							maxRay = o.y + ray.maxDist;
@@ -340,7 +322,7 @@ namespace physx
 					{
 						minBox = c.a[2] - e.a[2];
 						maxBox = c.a[2] + e.a[2];
-						if (Direction == RD_PosZ)
+						if (Direction == SRD_PosZ)
 						{
 							minRay = o.z;
 							maxRay = o.z + ray.maxDist;
@@ -363,17 +345,38 @@ namespace physx
 						&& intersect(secondAxis, minSecondAxis, maxSecondAxis)
 						&& intersect(thirdAxis, minThirdAxis, maxThirdAxis);
 
-					ray.canExit = !isIntersect;
+					if (!isIntersect)
+					{
+						filteredRays.pushBack(rays[i]);
+						shdfnd::swap(rays[i], rays[rays.size() - 1]);
+						rays.remove(rays.size() - 1);
+					}
+					else
+					{
+						i++;
+					}
+				}
+				return filteredRays;
+			}
+
+			void restore(const SqRayPtrArray& inRays)
+			{
+				if (inRays.empty())
+				{
+					return;
+				}
+
+				const uint32_t oldSize = rays.size();
+				rays.resize(rays.size() + inRays.size());
+				for (uint32_t i = 0; i < inRays.size(); i++)
+				{
+					rays[i + oldSize] = inRays[i];
 				}
 			}
 
 			bool filter()
 			{
-				if (!hasCanExit)
-				{
-					return hasRay();
-				}
-				RayArray newRays;
+				SqRayPtrArray newRays;
 				for (uint32_t i = 0; i < rays.size(); i++)
 				{
 					if (!rays[i]->canExit)
@@ -394,30 +397,28 @@ namespace physx
 			{
 				for (uint32_t i = 0; i < rays.size(); i++)
 				{
-					Ray* ray = rays[i];
+					SqRay* ray = rays[i];
 					ray->oldMaxDist = ray->md = ray->maxDist;
 				}
 			}
 
-			void setCanExit(Ray* ray)
+			void setCanExit(SqRay* ray)
 			{
 				ray->canExit = true;
-				hasCanExit = true;
 			}
 		};
 
-		template <bool tInflate, RayDirection Direction, typename Tree, typename Node> // use inflate=true for sweeps, inflate=false for raycasts
+		template <bool tInflate, SqRayDirection Direction, typename Tree, typename Node> // use inflate=true for sweeps, inflate=false for raycasts
 		class AABBTreeBatchRaycast
 		{
 		public:
 
 			struct BatchRaycastSharedParams
 			{
-				BatchRaycastSharedParams(const PrunerPayload* inObjects, const PxBounds3* inBoxes, const Tree& inTree, PrunerCallback& inPcb)
+				BatchRaycastSharedParams(const PrunerPayload* inObjects, const PxBounds3* inBoxes, const Tree& inTree)
 				: objects(inObjects)
 				, boxes(inBoxes)
 				, tree(inTree)
-				, pcb(inPcb)
 				{
 					
 				}
@@ -425,14 +426,14 @@ namespace physx
 				const PrunerPayload* objects;
 				const PxBounds3* boxes;
 				const Tree& tree;
-				PrunerCallback& pcb;
 			};
 
-			static PX_FORCE_INLINE void doLeafTest(const Node* node, const BatchRaycastSharedParams& sharedParams, BatchRay test)
+			static PX_FORCE_INLINE void doLeafTest(const BatchRaycastSharedParams& sharedParams, BatchRay& test, const Node* node)
 			{
 				PxU32 nbPrims = node->getNbPrimitives();
 				const bool doBoxTest = nbPrims > 1;
 				const PxU32* prims = node->getPrimitives(sharedParams.tree.getIndices());
+				SqRayPtrArray filteredRays;
 				while (nbPrims--)
 				{
 					const PxU32* prunableIndex = prims;
@@ -443,16 +444,17 @@ namespace physx
 					{
 						Vec4V center_, extents_;
 						getBoundsTimesTwo(center_, extents_, sharedParams.boxes, poolIndex);
-						test.check<tInflate, Direction>(Vec3V_From_Vec4V(center_), Vec3V_From_Vec4V(extents_));
-						test.filter();
+						filteredRays = test.check<tInflate, Direction>(Vec3V_From_Vec4V(center_), Vec3V_From_Vec4V(extents_));
 					}
 
+					bool hasExit = false;
 					for (uint32_t i = 0; i < test.rays.size(); i++)
 					{
-						Ray* ray = test.rays[i];
-						if (!sharedParams.pcb.invoke(ray->md, sharedParams.objects[poolIndex]))
+						SqRay* ray = test.rays[i];
+						if (!ray->pcb->invoke(ray->md, sharedParams.objects[poolIndex]))
 						{
 							test.setCanExit(ray);
+							hasExit = true;
 						}
 						else if (ray->md < ray->oldMaxDist)
 						{
@@ -460,49 +462,52 @@ namespace physx
 						}
 					}
 
-					if (!test.filter())
+					test.restore(filteredRays);
+
+					if (hasExit)
 					{
-						break;
+						if (!test.filter())
+						{
+							break;
+						}
 					}
 				}
 			}
 
-			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, BatchRay batchRay, const Node* node)
+			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, BatchRay& batchRay, const Node* node)
 			{
-				Vec3U center, extents;
+				Vec3V center, extents;
 				node->getAABBCenterExtentsV2(&center, &extents);
-				batchRay.check<tInflate, Direction>(center, extents);
-				if (batchRay.filter())
+				const SqRayPtrArray filteredRays = batchRay.check<tInflate, Direction>(center, extents);
+				if (batchRay.hasRay())
 				{
 					if(!node->isLeaf())
 					{
 						const Node* const nodeBase = sharedParams.tree.getNodes();
 						const Node* children = node->getPos(nodeBase);
 						doBatchRaycast(sharedParams, batchRay, &children[0]);
-						if (batchRay.filter())
-						{
-							doBatchRaycast(sharedParams, batchRay, &children[1]);
-						}
+						doBatchRaycast(sharedParams, batchRay, &children[1]);
 					}
 					else
 					{
 						batchRay.cacheMaxDist();
-						doLeafTest(sharedParams, node, batchRay);
+						doLeafTest(sharedParams, batchRay, node);
 					}
 				}
+				batchRay.restore(filteredRays);
 			}
 
-			bool operator()(
+			SqRayPtrArray operator()(
 				const PrunerPayload* objects, const PxBounds3* boxes, const Tree& tree,
-				BatchRay& batchRay,
-				PrunerCallback& pcb)
+				const SqRayPtrArray& rays)
 			{
 				using namespace Cm;
-
+				BatchRay batchRay;
+				batchRay.rays = rays;
 				const Node* const nodeBase = tree.getNodes();
-				BatchRaycastSharedParams sharedParams(objects, boxes, tree, pcb);
+				BatchRaycastSharedParams sharedParams(objects, boxes, tree);
 				doBatchRaycast(sharedParams, batchRay, nodeBase);
-				return batchRay.hasRay();
+				return batchRay.rays;
 			}
 		};
 	}

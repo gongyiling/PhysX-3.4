@@ -383,6 +383,25 @@ struct PxSweepBufferN : public PxHitBuffer<PxSweepHit>
 	PxSweepBufferN() : PxHitBuffer<PxSweepHit>(hits, N) {}
 };
 
+static const PxU32 PREFERED_MAX_RAYCAST_BATCH_SIZE = 8;
+
+struct PxRay
+{
+	PxRaycastCallback* hitCall;
+	PxVec3 origin;
+	PxReal distance;
+};
+
+class PxGeometry;
+class PxTransform;
+
+struct PxSweep
+{
+	PxSweepCallback* hitCall;
+	const PxGeometry* geometry;
+	const PxTransform* pose;
+};
+
 #if !PX_DOXYGEN
 } // namespace physx
 #endif

@@ -355,6 +355,70 @@ PxAgain AABBPruner::raycast(const PxVec3& origin, const PxVec3& unitDir, PxReal&
 	return again;
 }
 
+SqRayPtrArray AABBPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3& unitDir) const
+{
+	PX_ASSERT(!mUncommittedChanges);
+	SqRayPtrArray rayArray;
+	const SqRayDirection direction = toSqRayDirection(unitDir);
+	if (mAABBTree)
+	{
+		// static dispatch direction, hope more optimized code.
+		switch (direction)
+		{
+		case SRD_PosX:
+		{
+			rayArray = AABBTreeBatchRaycast<false, SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_NegX:
+		{
+			rayArray = AABBTreeBatchRaycast<false, SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_PosY:
+		{
+			rayArray = AABBTreeBatchRaycast<false, SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_NegY:
+		{
+			rayArray = AABBTreeBatchRaycast<false, SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_PosZ:
+		{
+			rayArray = AABBTreeBatchRaycast<false, SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_NegZ:
+		{
+			rayArray = AABBTreeBatchRaycast<false, SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		}
+	}
+
+	if (!rayArray.empty() && mIncrementalRebuild && mBucketPruner.getNbObjects())
+	{
+		for (PxU32 i = 0; i < rayArray.size();)
+		{
+			SqRay& ray = *rayArray[i];
+			const PxAgain again = mBucketPruner.raycast(ray.pxRay->origin, unitDir, ray.maxDist, *ray.pcb);
+			if (!again)
+			{
+				shdfnd::swap(rayArray[i], rayArray[rayArray.size() - 1]);
+				rayArray.remove(rayArray.size() - 1);
+			}
+			else
+			{
+				i++;
+			}
+		}
+	}
+
+	return rayArray;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  *	Other methods of Pruner Interface

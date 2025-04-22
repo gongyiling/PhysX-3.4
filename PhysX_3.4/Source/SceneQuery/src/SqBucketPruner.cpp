@@ -2275,6 +2275,25 @@ PxAgain BucketPruner::raycast(const PxVec3& origin, const PxVec3& unitDir, PxRea
 	return mCore.raycast(origin, unitDir, inOutDistance, pcb);
 }
 
+SqRayPtrArray BucketPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3& unitDir) const
+{
+	PX_ASSERT(!mCore.mDirty);
+	if (mCore.mDirty)
+		return rays; // it may crash otherwise
+
+	SqRayPtrArray rayArray;
+	for (PxU32 i = 0; i < rays.size(); i++)
+	{
+		SqRay& ray = *rays[i];
+		const PxAgain again = mCore.raycast(ray.pxRay->origin, unitDir, ray.maxDist, *ray.pcb);
+		if (again)
+		{
+			rayArray.pushBack(&ray);
+		}
+	}
+	return rayArray;
+}
+
 void BucketPruner::visualize(Cm::RenderOutput& out, PxU32 color) const
 {
 	mCore.visualize(out, color);

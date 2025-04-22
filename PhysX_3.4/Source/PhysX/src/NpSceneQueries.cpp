@@ -838,3 +838,86 @@ template bool NpSceneQueries::multiQuery<PxRaycastHit>(const MultiQueryInput&, P
 template bool NpSceneQueries::multiQuery<PxOverlapHit>(const MultiQueryInput&, PxHitCallback<PxOverlapHit>&, PxHitFlags, const PxQueryCache*, const PxQueryFilterData&, PxQueryFilterCallback*, BatchQueryFilterData*) const;
 template bool NpSceneQueries::multiQuery<PxSweepHit>(const MultiQueryInput&, PxHitCallback<PxSweepHit>&, PxHitFlags, const PxQueryCache*, const PxQueryFilterData&, PxQueryFilterCallback*, BatchQueryFilterData*) const;
 
+bool NpSceneQueries::batchRaycast(
+	const PxRay* rayStart, const PxRay* rayEnd, const PxVec3& unitDir,
+	PxHitFlags hitFlags,
+	const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall) const
+{
+	const_cast<NpSceneQueries*>(this)->mSQManager.flushUpdates();
+	const bool anyHit = (filterData.flags & PxQueryFlag::eANY_HIT) == PxQueryFlag::eANY_HIT;
+
+	const Pruner* staticPruner = mSQManager.get(PruningIndex::eSTATIC).pruner();
+	const Pruner* dynamicPruner = mSQManager.get(PruningIndex::eDYNAMIC).pruner();
+
+	const PxU32 doStatics = filterData.flags & PxQueryFlag::eSTATIC;
+	const PxU32 doDynamics = filterData.flags & PxQueryFlag::eDYNAMIC;
+
+	const PxU32 num = static_cast<PxU32>(rayEnd - rayStart);
+
+	Ps::InlineArray<MultiQueryCallback<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> pcbs;
+	pcbs.reserve(num);
+
+	Ps::InlineArray<MultiQueryInput, PREFERED_MAX_RAYCAST_BATCH_SIZE> inputs;
+	inputs.reserve(num);
+
+	SqRayArray rays;
+	rays.reserve(num);
+
+	SqRayPtrArray raysPtr;
+	raysPtr.reserve(num);
+
+	for (const PxRay* r = rayStart; r != rayEnd; r++)
+	{
+		MultiQueryInput& input = inputs.pushBack(MultiQueryInput(r->origin, unitDir, r->distance));
+		MultiQueryCallback<PxRaycastHit>& pcb = pcbs.pushBack(MultiQueryCallback<PxRaycastHit>(*this, input,anyHit, *r->hitCall, hitFlags, filterData, filterCall, r->distance, nullptr));
+		SqRay& ray = rays.pushBack(SqRay(r, &pcb));
+		raysPtr.pushBack(&ray);
+	}
+
+	if (doStatics)
+	{
+		raysPtr = staticPruner->batchRaycast(raysPtr, unitDir);
+	}
+
+	if (rays.empty())
+		return true;
+
+	if (doDynamics)
+		raysPtr = dynamicPruner->batchRaycast(raysPtr, unitDir);
+	return true;
+}
+
+bool NpSceneQueries::batchSweep(const PxSweep* sweepStart, const PxSweep* sweepEnd, const PxVec3& unitDir,
+	PxHitFlags hitFlags,
+	const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall) const
+{
+	return false;
+	//const_cast<NpSceneQueries*>(this)->mSQManager.flushUpdates();
+	//const Pruner* staticPruner = mSQManager.get(PruningIndex::eSTATIC).pruner();
+	//const Pruner* dynamicPruner = mSQManager.get(PruningIndex::eDYNAMIC).pruner();
+
+	//const PxU32 doStatics = filterData.flags & PxQueryFlag::eSTATIC;
+	//const PxU32 doDynamics = filterData.flags & PxQueryFlag::eDYNAMIC;
+
+	//PxReal shrunkDistance = HitTypeSupport<HitType>::IsOverlap ? PX_MAX_REAL : input.maxDistance; // can be progressively shrunk as we go over the list of shapes
+	//if (HitTypeSupport<HitType>::IsSweep)
+	//	shrunkDistance = PxMin(shrunkDistance, PX_MAX_SWEEP_DISTANCE);
+	//MultiQueryCallback<HitType> pcb(*this, input, anyHit, hits, hitFlags, filterData, filterCall, shrunkDistance, bfd);
+
+	//PX_ASSERT(HitTypeSupport<HitType>::IsSweep);
+	//PX_ASSERT(input.geometry);
+
+	//const ShapeData sd(*input.geometry, *input.pose, input.inflation);
+	//pcb.mQueryShapeBounds = sd.getPrunerInflatedWorldAABB();
+	//pcb.mQueryShapeBoundsValid = true;
+	//pcb.mShapeData = &sd;
+	//PxAgain again = doStatics ? staticPruner->sweep(sd, input.getDir(), pcb.mShrunkDistance, pcb) : true;
+	//if (!again)
+	//	return hits.hasAnyHits();
+
+	//if (doDynamics)
+	//	again = dynamicPruner->sweep(sd, input.getDir(), pcb.mShrunkDistance, pcb);
+
+	//cbr.again = again; // update the status to avoid duplicate processTouches()
+	//return hits.hasAnyHits();
+}

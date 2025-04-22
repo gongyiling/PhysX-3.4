@@ -1507,6 +1507,11 @@ class PxScene
 									const PxQueryFilterData& filterData = PxQueryFilterData(), PxQueryFilterCallback* filterCall = NULL,
 									const PxQueryCache* cache = NULL) const = 0;
 
+	virtual bool				batchRaycast(
+									const PxRay* rayStart, const PxRay* rayEnd, const PxVec3& unitDir,
+									PxHitFlags hitFlags = PxHitFlags(PxHitFlag::eDEFAULT),
+									const PxQueryFilterData& filterData = PxQueryFilterData(), PxQueryFilterCallback* filterCall = NULL) const = 0;
+
 	/**
 	\brief Performs a sweep test against objects in the scene, returns results in a PxSweepBuffer object
 	or via a custom user callback implementation inheriting from PxSweepCallback.
@@ -1539,6 +1544,10 @@ class PxScene
 									const PxQueryFilterData& filterData = PxQueryFilterData(), PxQueryFilterCallback* filterCall = NULL,
 									const PxQueryCache* cache = NULL, const PxReal inflation = 0.f) const = 0;
 
+
+	virtual bool				batchSweep(const PxSweep* sweepStart, const PxSweep* sweepEnd, const PxVec3& unitDir,
+									 PxHitFlags hitFlags = PxHitFlags(PxHitFlag::eDEFAULT),
+									 const PxQueryFilterData& filterData = PxQueryFilterData(), PxQueryFilterCallback* filterCall = NULL) const = 0;
 
 	/**
 	\brief Performs an overlap test of a given geometry against objects in the scene, returns results in a PxOverlapBuffer object

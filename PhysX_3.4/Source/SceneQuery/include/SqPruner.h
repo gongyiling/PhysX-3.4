@@ -78,6 +78,63 @@ struct PrunerCallback
     virtual ~PrunerCallback() {}
 };
 
+
+enum SqRayDirection
+{
+	SRD_PosX,
+	SRD_NegX,
+	SRD_PosY,
+	SRD_NegY,
+	SRD_PosZ,
+	SRD_NegZ,
+};
+
+PX_FORCE_INLINE SqRayDirection toSqRayDirection(const PxVec3& dir)
+{
+	if (dir.x > 0)
+	{
+		return SRD_PosX;
+	}
+	if (dir.x < 0)
+	{
+		return SRD_NegX;
+	}
+	if (dir.y > 0)
+	{
+		return SRD_PosY;
+	}
+	if (dir.y < 0)
+	{
+		return SRD_NegY;
+	}
+	if (dir.z > 0)
+	{
+		return SRD_PosZ;
+	}
+	return SRD_NegZ;
+}
+
+struct SqRay
+{
+	SqRay(const PxRay* r, PrunerCallback* p)
+		: pxRay(r)
+		, pcb(p)
+		, maxDist(r->distance)
+	{}
+
+	const PxRay* pxRay;
+	PrunerCallback* pcb;
+	PxVec3 inflation;
+	float maxDist = 0;
+	PxReal oldMaxDist = 0;
+	PxReal md = 0;
+	bool canExit = false;
+};
+
+using SqRayArray = Ps::InlineArray<SqRay, PREFERED_MAX_RAYCAST_BATCH_SIZE>;
+
+using SqRayPtrArray = Ps::InlineArray<SqRay*, PREFERED_MAX_RAYCAST_BATCH_SIZE>;
+
 class Pruner : public Ps::UserAllocated
 {
 public:
@@ -161,6 +218,7 @@ public:
 	virtual	PxAgain						overlap(const Gu::ShapeData& queryVolume, PrunerCallback&) const = 0;
 	virtual	PxAgain						sweep(const Gu::ShapeData& queryVolume, const PxVec3& unitDir, PxReal& inOutDistance, PrunerCallback&) const = 0;
 
+	virtual	SqRayPtrArray				batchRaycast(const SqRayPtrArray& rays, const PxVec3& unitDir) const = 0;
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/**
 	 *	Retrieve the object data associated with the handle

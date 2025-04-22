@@ -159,12 +159,21 @@ public:
 														const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall,
 														const PxQueryCache* cache) const;
 
+	virtual			bool							batchRaycast(
+														const PxRay* rayStart, const PxRay* rayEnd, const PxVec3& unitDir,
+														PxHitFlags hitFlags,
+														const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall) const;
+
 	virtual			bool							sweep(
 														const PxGeometry& geometry, const PxTransform& pose,	// GeomObject data
 														const PxVec3& unitDir, const PxReal distance,	// Ray data
 														PxSweepCallback& hitCall, PxHitFlags hitFlags,
 														const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall,
 														const PxQueryCache* cache, const PxReal inflation) const;
+
+	virtual			bool							batchSweep(const PxSweep* sweepStart, const PxSweep* sweepEnd, const PxVec3& unitDir,
+														PxHitFlags hitFlags,
+														const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall) const;
 
 	virtual			bool							overlap(
 														const PxGeometry& geometry, const PxTransform& transform,	// GeomObject data
