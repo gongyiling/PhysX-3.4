@@ -236,11 +236,10 @@ namespace physx
 
 		//////////////////////////////////////////////////////////////////////////
 
-
 		union Vec3U
 		{
-			Vec3V v;    // SSE 4 x float vector
-			float a[4];  // scalar array of 4 floats
+			Vec3V v;		// SSE 4 x float vector
+			float a[4];		// scalar array of 4 floats
 		};
 
 		struct BatchRay
@@ -258,17 +257,17 @@ namespace physx
 			}
 
 			template<bool TInflate, SqRayDirection Direction>
-			PX_FORCE_INLINE SqRayPtrArray check(const Vec3V center, const Vec3V extents)
+			PX_FORCE_INLINE SqRayPtrArray check(const Vec3V center2, const Vec3V extents2)
 			{
 				Vec3U c;
-				c.v = center;
+				c.v = center2;
 				SqRayPtrArray filteredRays;
 				for (uint32_t i = 0; i < rays.size();)
 				{
 					SqRay& ray = *rays[i];
 					PX_ASSERT(!ray.canExit);
 					Vec3U e;
-					e.v = TInflate ? V3Add(extents, V3LoadU(ray.inflation)) : extents;
+					e.v = TInflate ? V3Add(extents2, V3LoadU(ray.inflation2)) : extents2;
 					const PxVec3& o = ray.pxRay->origin;
 					PxReal minBox, maxBox, minRay, maxRay;
 					PxReal secondAxis, minSecondAxis, maxSecondAxis;
@@ -340,6 +339,13 @@ namespace physx
 						minThirdAxis = c.a[1] - e.a[1];
 						maxThirdAxis = c.a[1] + e.a[1];
 					}
+
+					// PT: we will pass center*2 and extents*2 to the ray-box code, to save some work per-box
+					// TODO pre multiply 2
+					minRay *= 2;
+					maxRay *= 2;
+					secondAxis *= 2;
+					thirdAxis *= 2;
 
 					const bool isIntersect = intersect(minBox, maxBox, minRay, maxRay)
 						&& intersect(secondAxis, minSecondAxis, maxSecondAxis)

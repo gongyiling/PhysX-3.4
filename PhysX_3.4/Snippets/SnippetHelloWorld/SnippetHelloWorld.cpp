@@ -44,6 +44,7 @@
 #include <iostream>
 #include <array>
 #include <PsArray.h>
+#include <string>
 #include <vector>
 
 using namespace physx;
@@ -72,6 +73,8 @@ PxRigidDynamic* createDynamic(const PxTransform& t, const PxGeometry& geometry, 
 	return dynamic;
 }
 
+static std::vector<std::string*> strings;
+
 void createStack(const PxTransform& t, PxU32 size, PxReal halfExtent)
 {
 	PxShape* shape = gPhysics->createShape(PxBoxGeometry(halfExtent, halfExtent, halfExtent), *gMaterial);
@@ -83,6 +86,9 @@ void createStack(const PxTransform& t, PxU32 size, PxReal halfExtent)
 			PxRigidDynamic* body = gPhysics->createRigidDynamic(t.transform(localTm));
 			body->attachShape(*shape);
 			PxRigidBodyExt::updateMassAndInertia(*body, 10.0f);
+			std::string* name = new std::string(std::to_string(localTm.p.x) + "_" + std::to_string(localTm.p.y) + "_" + std::to_string(localTm.p.z));
+			strings.push_back(name);
+			body->setName(name->data());
 			gScene->addActor(*body);
 		}
 	}
@@ -132,6 +138,10 @@ static void checkHit(const PxRaycastHit& a, const PxRaycastHit& b)
 
 static void checkCallback(const RaycastCallback& a, const RaycastCallback& b)
 {
+	if (a.block.actor)
+	{
+		std::cerr << a.block.actor->getName() << std::endl;
+	}
 	PX_ASSERT(a.hasBlock == b.hasBlock)
 	if (a.hasBlock)
 	{
@@ -178,6 +188,11 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 	{
 		queryFilterData.flags |= PxQueryFlag::eANY_HIT;
 	}
+
+	
+	PxRay* debugRay = rays.begin() + 102625;
+	gScene->batchRaycast(debugRay, debugRay + 1, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+	
 	gScene->batchRaycast(rays.begin(), rays.end(), dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 
 	for (PxU32 i = 0; i < numOrigin; i++)
@@ -185,6 +200,10 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 		RaycastHitArray hit;
 		RaycastCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
 		gScene->raycast(origin[i], dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+		if (callback.hasBlock != callbacks[i].hasBlock)
+		{
+			std::cerr << origin[i].x << ',' << origin[i].y << ',' << origin[i].z << std::endl;
+		}
 		checkCallback(callback, callbacks[i]);
 	}
 }
@@ -233,8 +252,8 @@ void initPhysics(bool interactive)
 	for(PxU32 i=0;i<5;i++)
 		createStack(PxTransform(PxVec3(0,0,stackZ-=10.0f)), 10, 2.0f);
 
-	if(!interactive)
-		createDynamic(PxTransform(PxVec3(0,40,100)), PxSphereGeometry(10), PxVec3(0,-50,-100));
+	//if(!interactive)
+	//	createDynamic(PxTransform(PxVec3(0,40,100)), PxSphereGeometry(10), PxVec3(0,-50,-100));
 	
 	std::vector<PxVec3> origins;
 
@@ -267,8 +286,8 @@ void initPhysics(bool interactive)
 		}
 	}
 
-	Transform.p = PxVec3(0, -50, 0);
-	groundPlane->setGlobalPose(Transform);
+	//Transform.p = PxVec3(0, -50, 0);
+	//groundPlane->setGlobalPose(Transform);
 
 }
 
