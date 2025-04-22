@@ -838,11 +838,29 @@ template bool NpSceneQueries::multiQuery<PxRaycastHit>(const MultiQueryInput&, P
 template bool NpSceneQueries::multiQuery<PxOverlapHit>(const MultiQueryInput&, PxHitCallback<PxOverlapHit>&, PxHitFlags, const PxQueryCache*, const PxQueryFilterData&, PxQueryFilterCallback*, BatchQueryFilterData*) const;
 template bool NpSceneQueries::multiQuery<PxSweepHit>(const MultiQueryInput&, PxHitCallback<PxSweepHit>&, PxHitFlags, const PxQueryCache*, const PxQueryFilterData&, PxQueryFilterCallback*, BatchQueryFilterData*) const;
 
+static PxU32 isNotZero(PxReal x)
+{
+	return static_cast<PxU32>(PxAbs(x) > 0);
+}
+
 bool NpSceneQueries::batchRaycast(
 	const PxRay* rayStart, const PxRay* rayEnd, const PxVec3& unitDir,
 	PxHitFlags hitFlags,
 	const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall) const
 {
+	const PxU32 mainAxisNum = isNotZero(unitDir.x) + isNotZero(unitDir.y) + isNotZero(unitDir.z);
+	PX_ASSERT(mainAxisNum == 1)
+	if (mainAxisNum != 1)
+	{
+		return false;
+	}
+
+	const PxU32 rayNum = static_cast<PxU32>(rayEnd - rayStart);
+	if (rayNum < 1)
+	{
+		return true;
+	}
+
 	const_cast<NpSceneQueries*>(this)->mSQManager.flushUpdates();
 	const bool anyHit = (filterData.flags & PxQueryFlag::eANY_HIT) == PxQueryFlag::eANY_HIT;
 
@@ -852,38 +870,57 @@ bool NpSceneQueries::batchRaycast(
 	const PxU32 doStatics = filterData.flags & PxQueryFlag::eSTATIC;
 	const PxU32 doDynamics = filterData.flags & PxQueryFlag::eDYNAMIC;
 
-	const PxU32 num = static_cast<PxU32>(rayEnd - rayStart);
-
 	Ps::InlineArray<MultiQueryCallback<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> pcbs;
-	pcbs.reserve(num);
+	pcbs.resizeUninitialized(rayNum);
 
 	Ps::InlineArray<MultiQueryInput, PREFERED_MAX_RAYCAST_BATCH_SIZE> inputs;
-	inputs.reserve(num);
+	inputs.resizeUninitialized(rayNum);
 
 	SqRayArray rays;
-	rays.reserve(num);
+	rays.resizeUninitialized(rayNum);
 
 	SqRayPtrArray raysPtr;
-	raysPtr.reserve(num);
+	raysPtr.resizeUninitialized(rayNum);
 
-	for (const PxRay* r = rayStart; r != rayEnd; r++)
+	Ps::InlineArray<IssueCallbacksOnReturn<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> crbs;
+	crbs.resizeUninitialized(rayNum);
+
+	for (PxU32 i = 0; i < rayNum; i++)
 	{
-		MultiQueryInput& input = inputs.pushBack(MultiQueryInput(r->origin, unitDir, r->distance));
-		MultiQueryCallback<PxRaycastHit>& pcb = pcbs.pushBack(MultiQueryCallback<PxRaycastHit>(*this, input,anyHit, *r->hitCall, hitFlags, filterData, filterCall, r->distance, nullptr));
-		SqRay& ray = rays.pushBack(SqRay(r, &pcb));
-		raysPtr.pushBack(&ray);
+		const PxRay* r = rayStart + i;
+		r->hitCall->hasBlock = false;
+		r->hitCall->nbTouches = 0;
+		new (&crbs[i]) IssueCallbacksOnReturn<PxRaycastHit>(*r->hitCall);
+
+		MultiQueryInput* input = new (&inputs[i]) MultiQueryInput(r->origin, unitDir, r->distance);
+		MultiQueryCallback<PxRaycastHit>* pcb = new (&pcbs[i]) MultiQueryCallback<PxRaycastHit>(*this, *input, anyHit, *r->hitCall, hitFlags, filterData, filterCall, r->distance, nullptr);
+		SqRay* ray = new (&rays[i]) SqRay(r, pcb);
+		raysPtr[i] = ray;
 	}
 
 	if (doStatics)
 	{
 		raysPtr = staticPruner->batchRaycast(raysPtr, unitDir);
+		if (raysPtr.empty())
+		{
+			for (PxU32 i = 0; i < rayNum; i++)
+			{
+				crbs[i].again = false;
+			}
+			return true;
+		}
 	}
 
-	if (rays.empty())
-		return true;
-
 	if (doDynamics)
-		raysPtr = dynamicPruner->batchRaycast(raysPtr, unitDir);
+	{
+		dynamicPruner->batchRaycast(raysPtr, unitDir);
+	}
+
+	for (PxU32 i = 0; i < rayNum; i++)
+	{
+		crbs[i].again = !rays[i].canExit;
+	}
+
 	return true;
 }
 
