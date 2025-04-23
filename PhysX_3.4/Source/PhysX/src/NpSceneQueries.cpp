@@ -874,20 +874,15 @@ bool NpSceneQueries::batchRaycast(
 	const PxU32 doStatics = filterData.flags & PxQueryFlag::eSTATIC;
 	const PxU32 doDynamics = filterData.flags & PxQueryFlag::eDYNAMIC;
 
-	Ps::InlineArray<MultiQueryCallback<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> pcbs;
-	pcbs.resizeUninitialized(rayNum);
+	Ps::InlineArray<MultiQueryCallback<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> pcbs(rayNum, PxEmpty);
 
-	Ps::InlineArray<MultiQueryInput, PREFERED_MAX_RAYCAST_BATCH_SIZE> inputs;
-	inputs.resizeUninitialized(rayNum);
+	Ps::InlineArray<MultiQueryInput, PREFERED_MAX_RAYCAST_BATCH_SIZE> inputs(rayNum, PxEmpty);
 
-	SqRayArray rays;
-	rays.resizeUninitialized(rayNum);
+	SqRayArray rays(rayNum, PxEmpty);
 
-	SqRayPtrArray raysPtr;
-	raysPtr.resizeUninitialized(rayNum);
+	SqRayPtrArray raysPtr(rayNum, PxEmpty);
 
-	Ps::InlineArray<IssueCallbacksOnReturn<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> crbs;
-	crbs.resizeUninitialized(rayNum);
+	Ps::InlineArray<IssueCallbacksOnReturn<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> crbs(rayNum, PxEmpty);
 
 	for (PxU32 i = 0; i < rayNum; i++)
 	{
@@ -934,10 +929,10 @@ bool NpSceneQueries::batchSweep(const PxSweep* sweepStart, const PxSweep* sweepE
 {
 	const PxU32 mainAxisNum = isNotZero(unitDir.x) + isNotZero(unitDir.y) + isNotZero(unitDir.z);
 	PX_ASSERT(mainAxisNum == 1)
-		if (mainAxisNum != 1)
-		{
-			return false;
-		}
+	if (mainAxisNum != 1)
+	{
+		return false;
+	}
 
 	const PxU32 rayNum = static_cast<PxU32>(sweepEnd - sweepStart);
 	if (rayNum < 1)
@@ -954,22 +949,17 @@ bool NpSceneQueries::batchSweep(const PxSweep* sweepStart, const PxSweep* sweepE
 	const PxU32 doStatics = filterData.flags & PxQueryFlag::eSTATIC;
 	const PxU32 doDynamics = filterData.flags & PxQueryFlag::eDYNAMIC;
 
-	Ps::InlineArray<MultiQueryCallback<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> pcbs;
-	pcbs.resizeUninitialized(rayNum);
+	Ps::InlineArray<MultiQueryCallback<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> pcbs(rayNum, PxEmpty);
 
-	Ps::InlineArray<MultiQueryInput, PREFERED_MAX_RAYCAST_BATCH_SIZE> inputs;
-	inputs.resizeUninitialized(rayNum);
+	Ps::InlineArray<MultiQueryInput, PREFERED_MAX_RAYCAST_BATCH_SIZE> inputs(rayNum, PxEmpty);
 
-	SqRayArray rays;
-	rays.resizeUninitialized(rayNum);
+	SqRayArray rays(rayNum, PxEmpty);
 
-	SqRayPtrArray raysPtr;
-	raysPtr.resizeUninitialized(rayNum);
+	SqRayPtrArray raysPtr(rayNum, PxEmpty);
 
-	Ps::InlineArray<IssueCallbacksOnReturn<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> crbs;
-	crbs.resizeUninitialized(rayNum);
+	Ps::InlineArray<IssueCallbacksOnReturn<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> crbs(rayNum, PxEmpty);
 
-	Ps::InlineArray<ShapeData, PREFERED_MAX_RAYCAST_BATCH_SIZE> sds;
+	Ps::InlineArray<ShapeData, PREFERED_MAX_RAYCAST_BATCH_SIZE> sds(rayNum, PxEmpty);
 
 	for (PxU32 i = 0; i < rayNum; i++)
 	{

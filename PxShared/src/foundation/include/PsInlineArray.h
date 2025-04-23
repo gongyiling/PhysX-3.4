@@ -61,6 +61,13 @@ class InlineArray : public Array<T, InlineAllocator<N * sizeof(T), Alloc> >
 		this->mData = this->allocate(N);
 		this->mCapacity = N;
 	}
+
+	PX_INLINE explicit InlineArray(uint32_t size, const PxEMPTY v) : Array<T, Allocator>(v)
+	{
+		this->mData = this->allocate(size);
+		this->mCapacity = PxMax(size, N);
+		this->mSize = size;
+	}
 };
 } // namespace shdfnd
 } // namespace physx

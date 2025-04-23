@@ -195,7 +195,7 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 		queryFilterData.flags |= PxQueryFlag::eANY_HIT;
 	}
 
-	const PxU32 Idx = 102626;
+	const PxU32 Idx = 106225;
 	PxRay* debugRay = rays.begin() + Idx;
 	gScene->batchRaycast(debugRay, debugRay + 1, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 
