@@ -62,8 +62,9 @@ class InlineArray : public Array<T, InlineAllocator<N * sizeof(T), Alloc> >
 		this->mCapacity = N;
 	}
 
-	PX_INLINE explicit InlineArray(uint32_t size, const PxEMPTY v) : Array<T, Allocator>(v)
+	PX_INLINE explicit InlineArray(uint32_t size, const PxEMPTY v, const Alloc& alloc = Alloc()) : Array<T, Allocator>(alloc)
 	{
+		PX_UNUSED(v);
 		this->mData = this->allocate(size);
 		this->mCapacity = PxMax(size, N);
 		this->mSize = size;
