@@ -136,7 +136,7 @@ static void checkHit(const PxRaycastHit& a, const PxRaycastHit& b)
 	PX_ASSERT(a.flags == b.flags);
 }
 
-static void checkCallback(const RaycastCallback& a, const RaycastCallback& b)
+static void checkCallback(const RaycastCallback& a, const RaycastCallback& b, bool anyHit)
 {
 	if (a.block.actor)
 	{
@@ -145,12 +145,18 @@ static void checkCallback(const RaycastCallback& a, const RaycastCallback& b)
 	PX_ASSERT(a.hasBlock == b.hasBlock)
 	if (a.hasBlock)
 	{
-		checkHit(a.block, b.block);
+		if (!anyHit)
+		{
+			checkHit(a.block, b.block);
+		}
 	}
 	PX_ASSERT(a.hits.size() == b.hits.size());
 	for (PxU32 i = 0; i < a.hits.size(); i++)
 	{
-		checkHit(a.hits[i], b.hits[i]);
+		if (!anyHit)
+		{
+			checkHit(a.hits[i], b.hits[i]);
+		}
 	}
 }
 
@@ -189,9 +195,13 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 		queryFilterData.flags |= PxQueryFlag::eANY_HIT;
 	}
 
-	
-	PxRay* debugRay = rays.begin() + 102626;
+	const PxU32 Idx = 102626;
+	PxRay* debugRay = rays.begin() + Idx;
 	gScene->batchRaycast(debugRay, debugRay + 1, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+
+	RaycastHitArray hit;
+	RaycastCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
+	gScene->raycast(origin[Idx], dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 	
 	gScene->batchRaycast(rays.begin(), rays.end(), dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 
@@ -205,7 +215,7 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 		{
 			std::cerr << origin[i].x << ',' << origin[i].y << ',' << origin[i].z << std::endl;
 		}
-		checkCallback(callback, callbacks[i]);
+		checkCallback(callback, callbacks[i], anyHit);
 	}
 }
 
