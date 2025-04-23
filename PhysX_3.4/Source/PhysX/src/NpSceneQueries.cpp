@@ -978,7 +978,7 @@ bool NpSceneQueries::batchSweep(const PxSweep* sweepStart, const PxSweep* sweepE
 		r->hitCall->nbTouches = 0;
 		new (&crbs[i]) IssueCallbacksOnReturn<PxSweepHit>(*r->hitCall);
 
-		MultiQueryInput* input = new (&inputs[i]) MultiQueryInput(r->geometry, r->pose, unitDir, r->distance, 0);
+		MultiQueryInput* input = new (&inputs[i]) MultiQueryInput(r->geometry, &(r->pose), unitDir, r->distance, 0);
 		PxReal shrunkDistance = input->maxDistance;								// can be progressively shrunk as we go over the list of shapes
 		shrunkDistance = PxMin(shrunkDistance, PX_MAX_SWEEP_DISTANCE);
 

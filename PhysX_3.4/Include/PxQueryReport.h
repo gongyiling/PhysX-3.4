@@ -35,6 +35,7 @@
 */
 #include "PxPhysXConfig.h"
 #include "foundation/PxVec3.h"
+#include "foundation/PxTransform.h"
 #include "foundation/PxFlags.h"
 
 #if !PX_DOXYGEN
@@ -404,7 +405,7 @@ struct PxSweep
 {
 	PxSweepCallback* hitCall;
 	const PxGeometry* geometry;
-	const PxTransform* pose;
+	PxTransform pose;
 	PxReal distance;
 };
 
