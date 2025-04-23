@@ -257,17 +257,19 @@ namespace physx
 			}
 
 			template<bool TInflate, SqRayDirection Direction>
-			PX_FORCE_INLINE SqRayPtrArray check(const Vec3V center2, const Vec3V extents2)
+			PX_FORCE_INLINE SqRayPtrArray check(const Vec3V minV, const Vec3V maxV)
 			{
-				Vec3U c;
-				c.v = center2;
 				SqRayPtrArray filteredRays;
 				for (uint32_t i = 0; i < rays.size();)
 				{
 					SqRay& ray = *rays[i];
 					PX_ASSERT(!ray.canExit);
-					Vec3U e;
-					e.v = TInflate ? V3Add(extents2, V3LoadU(ray.inflation2)) : extents2;
+
+					Vec3U eMinV;
+					eMinV.v = TInflate ? V3Sub(minV, V3LoadU(ray.inflation)) : minV;
+					Vec3U eMaxV;
+					eMaxV.v = TInflate ? V3Add(maxV, V3LoadU(ray.inflation)) : maxV;
+
 					const PxVec3& o = ray.pxRay->origin;
 					PxReal minBox, maxBox, minRay, maxRay;
 					PxReal secondAxis, minSecondAxis, maxSecondAxis;
@@ -275,8 +277,8 @@ namespace physx
 
 					if (Direction == SRD_PosX || Direction == SRD_NegX)
 					{
-						minBox = c.a[0] - e.a[0];
-						maxBox = c.a[0] + e.a[0];
+						minBox = eMinV.a[0];
+						maxBox = eMaxV.a[0];
 						if (Direction == SRD_PosX)
 						{
 							minRay = o.x;
@@ -288,17 +290,17 @@ namespace physx
 							maxRay = o.x;
 						}
 						secondAxis = o.y;
-						minSecondAxis = c.a[1] - e.a[1];
-						maxSecondAxis = c.a[1] + e.a[1];
+						minSecondAxis = eMinV.a[1];
+						maxSecondAxis = eMaxV.a[1];
 
 						thirdAxis = o.z;
-						minThirdAxis = c.a[2] - e.a[2];
-						maxThirdAxis = c.a[2] + e.a[2];
+						minThirdAxis = eMinV.a[2];
+						maxThirdAxis = eMaxV.a[2];
 					}
 					else if (Direction == SRD_PosY || Direction == SRD_NegY)
 					{
-						minBox = c.a[1] - e.a[1];
-						maxBox = c.a[1] + e.a[1];
+						minBox = eMinV.a[1];
+						maxBox = eMaxV.a[1];
 						if (Direction == SRD_PosY)
 						{
 							minRay = o.y;
@@ -310,17 +312,17 @@ namespace physx
 							maxRay = o.y;
 						}
 						secondAxis = o.x;
-						minSecondAxis = c.a[0] - e.a[0];
-						maxSecondAxis = c.a[0] + e.a[0];
+						minSecondAxis = eMinV.a[0];
+						maxSecondAxis = eMaxV.a[0];
 
 						thirdAxis = o.z;
-						minThirdAxis = c.a[2] - e.a[2];
-						maxThirdAxis = c.a[2] + e.a[2];
+						minThirdAxis = eMinV.a[2];
+						maxThirdAxis = eMaxV.a[2];
 					}
 					else
 					{
-						minBox = c.a[2] - e.a[2];
-						maxBox = c.a[2] + e.a[2];
+						minBox = eMinV.a[2];
+						maxBox = eMaxV.a[2];
 						if (Direction == SRD_PosZ)
 						{
 							minRay = o.z;
@@ -332,20 +334,13 @@ namespace physx
 							maxRay = o.z;
 						}
 						secondAxis = o.x;
-						minSecondAxis = c.a[0] - e.a[0];
-						maxSecondAxis = c.a[0] + e.a[0];
+						minSecondAxis = eMinV.a[0];
+						maxSecondAxis = eMaxV.a[0];
 
 						thirdAxis = o.y;
-						minThirdAxis = c.a[1] - e.a[1];
-						maxThirdAxis = c.a[1] + e.a[1];
+						minThirdAxis = eMinV.a[1];
+						maxThirdAxis = eMaxV.a[1];
 					}
-
-					// PT: we will pass center*2 and extents*2 to the ray-box code, to save some work per-box
-					// TODO pre multiply 2
-					minRay *= 2;
-					maxRay *= 2;
-					secondAxis *= 2;
-					thirdAxis *= 2;
 
 					const bool isIntersect = intersect(minBox, maxBox, minRay, maxRay)
 						&& intersect(secondAxis, minSecondAxis, maxSecondAxis)
@@ -354,8 +349,7 @@ namespace physx
 					if (!isIntersect)
 					{
 						filteredRays.pushBack(rays[i]);
-						shdfnd::swap(rays[i], rays[rays.size() - 1]);
-						rays.remove(rays.size() - 1);
+						rays.removeAtSwap(i);
 					}
 					else
 					{
@@ -448,9 +442,11 @@ namespace physx
 					const PoolIndex poolIndex = *prunableIndex;
 					if (doBoxTest)
 					{
-						Vec4V center_, extents_;
-						getBoundsTimesTwo(center_, extents_, sharedParams.boxes, poolIndex);
-						filteredRays = test.check<tInflate, Direction>(Vec3V_From_Vec4V(center_), Vec3V_From_Vec4V(extents_));
+						const PxBounds3* objectBounds = sharedParams.boxes + poolIndex;
+						const Vec4V minV = V4LoadU(&objectBounds->minimum.x);
+						const Vec4V maxV = V4LoadU(&objectBounds->maximum.x);
+
+						filteredRays = test.check<tInflate, Direction>(minV, maxV);
 					}
 
 					bool hasExit = false;
@@ -482,9 +478,9 @@ namespace physx
 
 			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, BatchRay& batchRay, const Node* node)
 			{
-				Vec3V center, extents;
-				node->getAABBCenterExtentsV2(&center, &extents);
-				const SqRayPtrArray filteredRays = batchRay.check<tInflate, Direction>(center, extents);
+				Vec3V minV, maxV;
+				node->getAABBMinMaxV(&minV, &maxV);
+				const SqRayPtrArray filteredRays = batchRay.check<tInflate, Direction>(minV, minV);
 				if (batchRay.hasRay())
 				{
 					if(!node->isLeaf())

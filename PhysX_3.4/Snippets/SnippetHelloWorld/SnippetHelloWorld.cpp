@@ -190,7 +190,7 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 	}
 
 	
-	PxRay* debugRay = rays.begin() + 102625;
+	PxRay* debugRay = rays.begin() + 102626;
 	gScene->batchRaycast(debugRay, debugRay + 1, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 	
 	gScene->batchRaycast(rays.begin(), rays.end(), dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
@@ -200,6 +200,7 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 		RaycastHitArray hit;
 		RaycastCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
 		gScene->raycast(origin[i], dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+		debugRay = &rays[i];
 		if (callback.hasBlock != callbacks[i].hasBlock)
 		{
 			std::cerr << origin[i].x << ',' << origin[i].y << ',' << origin[i].z << std::endl;

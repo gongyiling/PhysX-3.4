@@ -124,7 +124,7 @@ struct SqRay
 
 	const PxRay* pxRay;
 	PrunerCallback* pcb;
-	PxVec3 inflation2;
+	PxVec3 inflation;
 	float maxDist = 0;
 	PxReal oldMaxDist = 0;
 	PxReal md = 0;

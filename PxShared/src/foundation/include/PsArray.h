@@ -405,6 +405,13 @@ class Array : protected Alloc
 		--mSize;
 	}
 
+	PX_INLINE void removeAtSwap(uint32_t i)
+	{
+		shdfnd::swap(mData[i], mData[mSize - 1]);
+		mData[mSize - 1].~T();
+		--mSize;
+	}
+
 	/////////////////////////////////////////////////////////////////////////
 	/*!
 	Removes a range from the array.  Shifts the array so order is maintained.
