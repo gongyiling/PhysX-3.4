@@ -480,7 +480,7 @@ namespace physx
 			{
 				Vec3V minV, maxV;
 				node->getAABBMinMaxV(&minV, &maxV);
-				const SqRayPtrArray filteredRays = batchRay.check<tInflate, Direction>(minV, minV);
+				const SqRayPtrArray filteredRays = batchRay.check<tInflate, Direction>(minV, maxV);
 				if (batchRay.hasRay())
 				{
 					if(!node->isLeaf())

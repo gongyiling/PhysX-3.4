@@ -406,8 +406,7 @@ SqRayPtrArray AABBPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3& 
 			const PxAgain again = mBucketPruner.raycast(ray.pxRay->origin, unitDir, ray.maxDist, *ray.pcb);
 			if (!again)
 			{
-				shdfnd::swap(rayArray[i], rayArray[rayArray.size() - 1]);
-				rayArray.remove(rayArray.size() - 1);
+				rayArray.removeAtSwap(i);
 			}
 			else
 			{
