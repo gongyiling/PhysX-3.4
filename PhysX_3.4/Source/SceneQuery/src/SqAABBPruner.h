@@ -135,6 +135,7 @@ namespace Sq
 		virtual			void					commit();
 		virtual			PxAgain					raycast(const PxVec3& origin, const PxVec3& unitDir, PxReal& inOutDistance, PrunerCallback&)	const;
 		virtual			SqRayPtrArray			batchRaycast(const SqRayPtrArray& rays, const PxVec3& unitDir) const;
+		virtual			SqRayPtrArray			batchSweep(const SqRayPtrArray& rays, const PxVec3& unitDir) const;
 		virtual			PxAgain					overlap(const Gu::ShapeData& queryVolume, PrunerCallback&)	const;
 		virtual			PxAgain					sweep(const Gu::ShapeData& queryVolume, const PxVec3& unitDir, PxReal& inOutDistance, PrunerCallback&)	const;
 		virtual			const PrunerPayload&	getPayload(PrunerHandle handle)						const	{ return mPool.getPayload(handle);			}

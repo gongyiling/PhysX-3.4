@@ -564,6 +564,10 @@ struct MultiQueryCallback : public PrunerCallback
 		return true;
 	}
 
+	virtual const Gu::ShapeData* getShapeData() const
+	{
+		return mShapeData;
+	}
 private:
 	MultiQueryCallback<HitType>& operator=(const MultiQueryCallback<HitType>&);
 };
@@ -928,33 +932,89 @@ bool NpSceneQueries::batchSweep(const PxSweep* sweepStart, const PxSweep* sweepE
 	PxHitFlags hitFlags,
 	const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall) const
 {
-	return false;
-	//const_cast<NpSceneQueries*>(this)->mSQManager.flushUpdates();
-	//const Pruner* staticPruner = mSQManager.get(PruningIndex::eSTATIC).pruner();
-	//const Pruner* dynamicPruner = mSQManager.get(PruningIndex::eDYNAMIC).pruner();
+	const PxU32 mainAxisNum = isNotZero(unitDir.x) + isNotZero(unitDir.y) + isNotZero(unitDir.z);
+	PX_ASSERT(mainAxisNum == 1)
+		if (mainAxisNum != 1)
+		{
+			return false;
+		}
 
-	//const PxU32 doStatics = filterData.flags & PxQueryFlag::eSTATIC;
-	//const PxU32 doDynamics = filterData.flags & PxQueryFlag::eDYNAMIC;
+	const PxU32 rayNum = static_cast<PxU32>(sweepEnd - sweepStart);
+	if (rayNum < 1)
+	{
+		return true;
+	}
 
-	//PxReal shrunkDistance = HitTypeSupport<HitType>::IsOverlap ? PX_MAX_REAL : input.maxDistance; // can be progressively shrunk as we go over the list of shapes
-	//if (HitTypeSupport<HitType>::IsSweep)
-	//	shrunkDistance = PxMin(shrunkDistance, PX_MAX_SWEEP_DISTANCE);
-	//MultiQueryCallback<HitType> pcb(*this, input, anyHit, hits, hitFlags, filterData, filterCall, shrunkDistance, bfd);
+	const_cast<NpSceneQueries*>(this)->mSQManager.flushUpdates();
+	const bool anyHit = (filterData.flags & PxQueryFlag::eANY_HIT) == PxQueryFlag::eANY_HIT;
 
-	//PX_ASSERT(HitTypeSupport<HitType>::IsSweep);
-	//PX_ASSERT(input.geometry);
+	const Pruner* staticPruner = mSQManager.get(PruningIndex::eSTATIC).pruner();
+	const Pruner* dynamicPruner = mSQManager.get(PruningIndex::eDYNAMIC).pruner();
 
-	//const ShapeData sd(*input.geometry, *input.pose, input.inflation);
-	//pcb.mQueryShapeBounds = sd.getPrunerInflatedWorldAABB();
-	//pcb.mQueryShapeBoundsValid = true;
-	//pcb.mShapeData = &sd;
-	//PxAgain again = doStatics ? staticPruner->sweep(sd, input.getDir(), pcb.mShrunkDistance, pcb) : true;
-	//if (!again)
-	//	return hits.hasAnyHits();
+	const PxU32 doStatics = filterData.flags & PxQueryFlag::eSTATIC;
+	const PxU32 doDynamics = filterData.flags & PxQueryFlag::eDYNAMIC;
 
-	//if (doDynamics)
-	//	again = dynamicPruner->sweep(sd, input.getDir(), pcb.mShrunkDistance, pcb);
+	Ps::InlineArray<MultiQueryCallback<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> pcbs;
+	pcbs.resizeUninitialized(rayNum);
 
-	//cbr.again = again; // update the status to avoid duplicate processTouches()
-	//return hits.hasAnyHits();
+	Ps::InlineArray<MultiQueryInput, PREFERED_MAX_RAYCAST_BATCH_SIZE> inputs;
+	inputs.resizeUninitialized(rayNum);
+
+	SqRayArray rays;
+	rays.resizeUninitialized(rayNum);
+
+	SqRayPtrArray raysPtr;
+	raysPtr.resizeUninitialized(rayNum);
+
+	Ps::InlineArray<IssueCallbacksOnReturn<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> crbs;
+	crbs.resizeUninitialized(rayNum);
+
+	Ps::InlineArray<ShapeData, PREFERED_MAX_RAYCAST_BATCH_SIZE> sds;
+
+	for (PxU32 i = 0; i < rayNum; i++)
+	{
+		const PxSweep* r = sweepStart + i;
+		r->hitCall->hasBlock = false;
+		r->hitCall->nbTouches = 0;
+		new (&crbs[i]) IssueCallbacksOnReturn<PxSweepHit>(*r->hitCall);
+
+		MultiQueryInput* input = new (&inputs[i]) MultiQueryInput(r->geometry, r->pose, unitDir, r->distance, 0);
+		PxReal shrunkDistance = input->maxDistance;								// can be progressively shrunk as we go over the list of shapes
+		shrunkDistance = PxMin(shrunkDistance, PX_MAX_SWEEP_DISTANCE);
+
+		MultiQueryCallback<PxSweepHit>* pcb = new (&pcbs[i]) MultiQueryCallback<PxSweepHit>(*this, *input, anyHit, *r->hitCall, hitFlags, filterData, filterCall, shrunkDistance, nullptr);
+
+		const ShapeData* sd = new(&sds[i]) ShapeData(*input->geometry, *input->pose, input->inflation);
+		pcb->mQueryShapeBounds = sd->getPrunerInflatedWorldAABB();
+		pcb->mQueryShapeBoundsValid = true;
+		pcb->mShapeData = sd;
+
+		SqRay* ray = new (&rays[i]) SqRay(pcb->mQueryShapeBounds.getCenter(), pcb->mQueryShapeBounds.getExtents(), pcb->mShrunkDistance, pcb);
+		raysPtr[i] = ray;
+	}
+
+	if (doStatics)
+	{
+		raysPtr = staticPruner->batchSweep(raysPtr, unitDir);
+		if (raysPtr.empty())
+		{
+			for (PxU32 i = 0; i < rayNum; i++)
+			{
+				crbs[i].again = false;
+			}
+			return true;
+		}
+	}
+
+	if (doDynamics)
+	{
+		dynamicPruner->batchSweep(raysPtr, unitDir);
+	}
+
+	for (PxU32 i = 0; i < rayNum; i++)
+	{
+		crbs[i].again = !rays[i].canExit;
+	}
+
+	return true;
 }

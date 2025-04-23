@@ -405,6 +405,7 @@ struct PxSweep
 	PxSweepCallback* hitCall;
 	const PxGeometry* geometry;
 	const PxTransform* pose;
+	PxReal distance;
 };
 
 #if !PX_DOXYGEN

@@ -2285,7 +2285,26 @@ SqRayPtrArray BucketPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3
 	for (PxU32 i = 0; i < rays.size(); i++)
 	{
 		SqRay& ray = *rays[i];
-		const PxAgain again = mCore.raycast(ray.pxRay->origin, unitDir, ray.maxDist, *ray.pcb);
+		const PxAgain again = mCore.raycast(ray.origin, unitDir, ray.maxDist, *ray.pcb);
+		if (again)
+		{
+			rayArray.pushBack(&ray);
+		}
+	}
+	return rayArray;
+}
+
+SqRayPtrArray BucketPruner::batchSweep(const SqRayPtrArray& rays, const PxVec3& unitDir) const
+{
+	PX_ASSERT(!mCore.mDirty);
+	if (mCore.mDirty)
+		return rays; // it may crash otherwise
+
+	SqRayPtrArray rayArray;
+	for (PxU32 i = 0; i < rays.size(); i++)
+	{
+		SqRay& ray = *rays[i];
+		const PxAgain again = mCore.sweep(*ray.pcb->getShapeData(), unitDir, ray.maxDist, *ray.pcb);
 		if (again)
 		{
 			rayArray.pushBack(&ray);

@@ -75,6 +75,7 @@ struct PrunerPayload
 struct PrunerCallback
 {
 	virtual PxAgain invoke(PxReal& distance, const PrunerPayload& payload) = 0;
+	virtual const Gu::ShapeData* getShapeData() const { return nullptr; }
     virtual ~PrunerCallback() {}
 };
 
@@ -117,15 +118,23 @@ PX_FORCE_INLINE SqRayDirection toSqRayDirection(const PxVec3& dir)
 struct SqRay
 {
 	SqRay(const PxRay* r, PrunerCallback* p)
-		: pxRay(r)
-		, pcb(p)
+		: pcb(p)
+		, origin(r->origin)
 		, maxDist(r->distance)
 	{}
 
-	const PxRay* pxRay;
+	SqRay(const PxVec3& o, const PxVec3& i, PxReal d, PrunerCallback* p)
+		: pcb(p)
+		, origin(o)
+		, inflation(d)
+		, maxDist(d)
+	{
+	}
+
 	PrunerCallback* pcb;
+	PxVec3 origin;
 	PxVec3 inflation;
-	float maxDist = 0;
+	PxReal maxDist = 0;
 	PxReal oldMaxDist = 0;
 	PxReal md = 0;
 	bool canExit = false;
@@ -219,6 +228,7 @@ public:
 	virtual	PxAgain						sweep(const Gu::ShapeData& queryVolume, const PxVec3& unitDir, PxReal& inOutDistance, PrunerCallback&) const = 0;
 
 	virtual	SqRayPtrArray				batchRaycast(const SqRayPtrArray& rays, const PxVec3& unitDir) const = 0;
+	virtual	SqRayPtrArray				batchSweep(const SqRayPtrArray& rays, const PxVec3& unitDir) const = 0;
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/**
 	 *	Retrieve the object data associated with the handle

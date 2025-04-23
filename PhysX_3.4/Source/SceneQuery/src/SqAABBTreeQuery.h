@@ -270,7 +270,7 @@ namespace physx
 					Vec3U eMaxV;
 					eMaxV.v = TInflate ? V3Add(maxV, V3LoadU(ray.inflation)) : maxV;
 
-					const PxVec3& o = ray.pxRay->origin;
+					const PxVec3& o = ray.origin;
 					PxReal minBox, maxBox, minRay, maxRay;
 					PxReal secondAxis, minSecondAxis, maxSecondAxis;
 					PxReal thirdAxis, minThirdAxis, maxThirdAxis;

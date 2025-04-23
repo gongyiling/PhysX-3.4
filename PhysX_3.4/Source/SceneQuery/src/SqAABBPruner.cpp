@@ -403,7 +403,73 @@ SqRayPtrArray AABBPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3& 
 		for (PxU32 i = 0; i < rayArray.size();)
 		{
 			SqRay& ray = *rayArray[i];
-			const PxAgain again = mBucketPruner.raycast(ray.pxRay->origin, unitDir, ray.maxDist, *ray.pcb);
+			const PxAgain again = mBucketPruner.raycast(ray.origin, unitDir, ray.maxDist, *ray.pcb);
+			if (!again)
+			{
+				rayArray.removeAtSwap(i);
+			}
+			else
+			{
+				i++;
+			}
+		}
+	}
+
+	return rayArray;
+}
+
+SqRayPtrArray AABBPruner::batchSweep(const SqRayPtrArray& rays, const PxVec3& unitDir) const
+{
+	PX_ASSERT(!mUncommittedChanges);
+
+	SqRayPtrArray rayArray;
+	const SqRayDirection direction = toSqRayDirection(unitDir);
+
+	if (mAABBTree)
+	{
+		// static dispatch direction, hope more optimized code.
+		switch (direction)
+		{
+		case SRD_PosX:
+		{
+			rayArray = AABBTreeBatchRaycast<true, SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_NegX:
+		{
+			rayArray = AABBTreeBatchRaycast<true, SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_PosY:
+		{
+			rayArray = AABBTreeBatchRaycast<true, SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_NegY:
+		{
+			rayArray = AABBTreeBatchRaycast<true, SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_PosZ:
+		{
+			rayArray = AABBTreeBatchRaycast<true, SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		case SRD_NegZ:
+		{
+			rayArray = AABBTreeBatchRaycast<true, SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			break;
+		}
+		}
+	}
+
+	if (!rayArray.empty() && mIncrementalRebuild && mBucketPruner.getNbObjects())
+	{
+		for (PxU32 i = 0; i < rayArray.size();)
+		{
+			SqRay& ray = *rayArray[i];
+			
+			const PxAgain again = mBucketPruner.sweep(*ray.pcb->getShapeData(), unitDir, ray.maxDist, *ray.pcb);
 			if (!again)
 			{
 				rayArray.removeAtSwap(i);
