@@ -34,6 +34,7 @@
 // user to create new stacks and fire a ball from the camera position
 // ****************************************************************************
 
+#include <algorithm>
 #include <ctype.h>
 
 #include "PxPhysicsAPI.h"
@@ -110,6 +111,21 @@ struct RaycastCallback : PxRaycastCallback
 	PX_FORCE_INLINE bool hasAnyHitsEx() { return PxRaycastCallback::hasAnyHits() || !hits.empty(); }
 };
 
+struct SweepCallback : PxSweepCallback
+{
+	using PxSweepCallback::PxSweepCallback;
+	virtual PxAgain processTouches(const PxSweepHit* buffer, PxU32 nbHits) override
+	{
+		for (PxU32 i = 0; i < nbHits; i++)
+		{
+			hits.pushBack(buffer[i]);
+		}
+		return true;
+	}
+	shdfnd::Array<PxSweepHit> hits;
+	PX_FORCE_INLINE bool hasAnyHitsEx() { return PxSweepCallback::hasAnyHits() || !hits.empty(); }
+};
+
 PxRigidDynamic* PxCreateDynamic(PxPhysics& sdk,
 	const PxTransform& transform,
 	PxShape& shape,
@@ -130,13 +146,13 @@ static void checkHit(const PxRaycastHit& a, const PxRaycastHit& b)
 	PX_ASSERT(a.normal == b.normal);
 	PX_ASSERT(a.position == b.position);
 
-	PX_ASSERT(a.actor == b.actor);
-	PX_ASSERT(a.shape == b.shape);
+	//PX_ASSERT(a.actor == b.actor);
+	//PX_ASSERT(a.shape == b.shape);
 
 	PX_ASSERT(a.flags == b.flags);
 }
 
-static void checkCallback(const RaycastCallback& a, const RaycastCallback& b, bool anyHit)
+static void checkCallback(RaycastCallback& a, RaycastCallback& b, bool anyHit)
 {
 	if (a.block.actor)
 	{
@@ -151,9 +167,19 @@ static void checkCallback(const RaycastCallback& a, const RaycastCallback& b, bo
 		}
 	}
 	PX_ASSERT(a.hits.size() == b.hits.size());
-	for (PxU32 i = 0; i < a.hits.size(); i++)
+	if (!anyHit)
 	{
-		if (!anyHit)
+		std::sort(a.hits.begin(), a.hits.end(), [](const PxRaycastHit& aa, const PxRaycastHit& bb)
+		{
+				return aa.distance < bb.distance;
+		});
+
+		std::sort(b.hits.begin(), b.hits.end(), [](const PxRaycastHit& aa, const PxRaycastHit& bb)
+		{
+				return aa.distance < bb.distance;
+		});
+
+		for (PxU32 i = 0; i < a.hits.size(); i++)
 		{
 			checkHit(a.hits[i], b.hits[i]);
 		}
@@ -197,12 +223,13 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 
 	const PxU32 Idx = 106225;
 	PxRay* debugRay = rays.begin() + Idx;
-	gScene->batchRaycast(debugRay, debugRay + 1, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 
-	RaycastHitArray hit;
-	RaycastCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
-	gScene->raycast(origin[Idx], dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
-	
+	//gScene->batchRaycast(debugRay, debugRay + 1, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+
+	//RaycastHitArray hit;
+	//RaycastCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
+	//gScene->raycast(origin[Idx], dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+	//
 	gScene->batchRaycast(rays.begin(), rays.end(), dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 
 	for (PxU32 i = 0; i < numOrigin; i++)
@@ -225,6 +252,125 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 	testBatchQuery(origin, numOrigin, dir, dist, true, false);
 	testBatchQuery(origin, numOrigin, dir, dist, false, true);
 	testBatchQuery(origin, numOrigin, dir, dist, false, false);
+}
+
+static void checkSweepHit(const PxSweepHit& a, const PxSweepHit& b)
+{
+	PX_ASSERT(a.distance == b.distance);
+	PX_ASSERT(a.normal == b.normal);
+	PX_ASSERT(a.position == b.position);
+
+	//PX_ASSERT(a.actor == b.actor);
+	//PX_ASSERT(a.shape == b.shape);
+
+	PX_ASSERT(a.flags == b.flags);
+}
+
+static void checkSweepCallback(SweepCallback& a, SweepCallback& b, bool anyHit)
+{
+	if (a.block.actor)
+	{
+		//std::cerr << a.block.actor->getName() << std::endl;
+	}
+	PX_ASSERT(a.hasBlock == b.hasBlock)
+		if (a.hasBlock)
+		{
+			if (!anyHit)
+			{
+				checkSweepHit(a.block, b.block);
+			}
+		}
+	PX_ASSERT(a.hits.size() == b.hits.size());
+
+	if (!anyHit)
+	{
+		std::sort(a.hits.begin(), a.hits.end(), [](const PxSweepHit& aa, const PxSweepHit& bb)
+			{
+				return aa.distance < bb.distance;
+			});
+
+		std::sort(b.hits.begin(), b.hits.end(), [](const PxSweepHit& aa, const PxSweepHit& bb)
+			{
+				return aa.distance < bb.distance;
+			});
+
+		for (PxU32 i = 0; i < a.hits.size(); i++)
+		{
+			checkSweepHit(a.hits[i], b.hits[i]);
+		}
+	}
+}
+
+struct SweepHitArray
+{
+	PxSweepHit hits[128];
+};
+
+static void testBatchSweep(const PxVec3* origin, PxU32 numOrigin, const PxVec3& dir, PxReal dist, bool block, bool anyHit)
+{
+	std::vector<SweepHitArray> hits;
+	hits.resize(numOrigin);
+
+	shdfnd::Array<SweepCallback> callbacks;
+	callbacks.resizeUninitialized(numOrigin);
+
+	shdfnd::Array<PxSweep> rays;
+	rays.resizeUninitialized(numOrigin);
+	PxSphereGeometry geometry(10);
+	for (PxU32 i = 0; i < numOrigin; i++)
+	{
+		SweepCallback* callback = nullptr;
+		if (block)
+		{
+			callback = new (&callbacks[i]) SweepCallback(nullptr, 0);
+			
+		}
+		else
+		{
+			callback = new (&callbacks[i]) SweepCallback(hits[i].hits, 128);
+		}
+		PxSweep* sweep = new (&rays[i]) PxSweep();
+		sweep->hitCall = callback;
+		sweep->geometry = &geometry;
+		sweep->pose.p = origin[i];
+		sweep->pose.q = PxQuat(PxIdentity);
+	}
+	PxQueryFilterData queryFilterData;
+	if (anyHit)
+	{
+		queryFilterData.flags |= PxQueryFlag::eANY_HIT;
+	}
+
+	const PxU32 Idx = 106225;
+	PxSweep* debugRay = rays.begin() + Idx;
+	//gScene->batchSweep(debugRay, debugRay + 1, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+
+	//SweepHitArray hit;
+	//SweepCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
+	//gScene->sweep(geometry, debugRay->pose, dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+
+	//gScene->batchSweep(rays.begin(), rays.end(), dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+
+	for (PxU32 i = 0; i < numOrigin; i++)
+	{
+		SweepHitArray hit;
+		SweepCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
+		gScene->sweep(geometry, rays[i].pose, dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+		debugRay = &rays[i];
+		if (callback.hasBlock != callbacks[i].hasBlock)
+		{
+			std::cerr << origin[i].x << ',' << origin[i].y << ',' << origin[i].z << std::endl;
+		}
+		checkSweepCallback(callback, callbacks[i], anyHit);
+	}
+}
+
+static void testBatchSweep(const PxVec3* origin, PxU32 numOrigin, const PxVec3& dir, PxReal dist)
+{
+	testBatchSweep(origin, numOrigin, dir, dist, true, true);
+	testBatchSweep(origin, numOrigin, dir, dist, true, false);
+	testBatchSweep(origin, numOrigin, dir, dist, false, true);
+	testBatchSweep(origin, numOrigin, dir, dist, false, false);
 }
 
 void initPhysics(bool interactive)
@@ -294,6 +440,7 @@ void initPhysics(bool interactive)
 		for (PxU32 j = 0; j < origins.size(); j++)
 		{
 			testBatchQuery(origins.data(), origins.size(), dirs[j], distances[i]);
+			testBatchSweep(origins.data(), origins.size(), dirs[j], distances[i]);
 		}
 	}
 

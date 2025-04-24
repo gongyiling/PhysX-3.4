@@ -126,7 +126,7 @@ struct SqRay
 	SqRay(const PxVec3& o, const PxVec3& i, PxReal d, PrunerCallback* p)
 		: pcb(p)
 		, origin(o)
-		, inflation(d)
+		, inflation(i)
 		, maxDist(d)
 	{
 	}
