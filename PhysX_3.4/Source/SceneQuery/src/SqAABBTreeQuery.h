@@ -34,6 +34,54 @@
 #include "SqPruner.h"
 #include "SqPrunerTestsSIMD.h"
 
+#define SQ_AABB_DEBUG_BATCH_QUERY 1
+
+#if SQ_AABB_DEBUG_BATCH_QUERY
+#include <iostream>
+
+union Vec3U
+{
+	physx::Vec3V v;		// SSE 4 x float vector
+	float a[4];		// scalar array of 4 floats
+};
+
+PX_FORCE_INLINE std::ostream& operator <<(std::ostream& os, const physx::Vec3V& V)
+{
+	Vec3U U;
+	U.v = V;
+	os << U.a[0] << ',' << U.a[1] << ',' << U.a[2];
+	return os;
+}
+
+PX_FORCE_INLINE void printMinMax(const physx::Vec3V& minV, const physx::Vec3V& maxV, bool bResult)
+{
+	std::cerr << minV << '\t' << maxV << '\t' << bResult << std::endl;
+}
+
+PX_FORCE_INLINE void printCenterExtend2(const physx::Vec3V& c2, const physx::Vec3V& e2, bool bResult)
+{
+	const float half = 0.5f;
+	const physx::FloatV halfV = physx::FLoad(half);
+
+	const physx::Vec4V extents_ = physx::V4Scale(e2, halfV);
+	const physx::Vec4V center_ = physx::V4Scale(e2, halfV);
+	printMinMax(physx::V4Sub(center_, extents_), physx::V4Add(center_, extents_), bResult);
+}
+
+#else
+
+PX_FORCE_INLINE void printMinMax(const physx::Vec3V& minV, const physx::Vec3V& maxV, bool bResult)
+{
+	
+}
+
+PX_FORCE_INLINE void printCenterExtend2(const physx::Vec3V& c2, const physx::Vec3V& e2, bool bResult)
+{
+	
+}
+
+#endif
+
 namespace physx
 {
 	namespace Sq
@@ -141,8 +189,9 @@ namespace physx
 				{
 					Vec4V center_, extents_;
 					getBoundsTimesTwo(center_, extents_, boxes, poolIndex);
-
-					if (!test.check<tInflate>(Vec3V_From_Vec4V(center_), Vec3V_From_Vec4V(extents_)))
+					const PxU32 b = test.check<tInflate>(Vec3V_From_Vec4V(center_), Vec3V_From_Vec4V(extents_));
+					printCenterExtend2(center_, extents_, b);
+					if (!b)
 						continue;
 				}
 
@@ -187,7 +236,9 @@ namespace physx
 					const Node* node = stack[stackIndex];
 					Vec3V center, extents;
 					node->getAABBCenterExtentsV2(&center, &extents);
-					if (test.check<tInflate>(center, extents))	// TODO: try timestamp ray shortening to skip this
+					const PxU32 b = test.check<tInflate>(center, extents);
+					printCenterExtend2(center, extents, b);
+					if (b)	// TODO: try timestamp ray shortening to skip this
 					{
 						PxReal md = maxDist; // has to be before the goto below to avoid compile error
 						while (!node->isLeaf())
@@ -197,10 +248,12 @@ namespace physx
 							Vec3V c0, e0;
 							children[0].getAABBCenterExtentsV2(&c0, &e0);
 							const PxU32 b0 = test.check<tInflate>(c0, e0);
+							printCenterExtend2(c0, e0, b0);
 
 							Vec3V c1, e1;
 							children[1].getAABBCenterExtentsV2(&c1, &e1);
 							const PxU32 b1 = test.check<tInflate>(c1, e1);
+							printCenterExtend2(c1, e1, b1);
 
 							if (b0 && b1)	// if both intersect, push the one with the further center on the stack for later
 							{
@@ -235,12 +288,6 @@ namespace physx
 
 
 		//////////////////////////////////////////////////////////////////////////
-
-		union Vec3U
-		{
-			Vec3V v;		// SSE 4 x float vector
-			float a[4];		// scalar array of 4 floats
-		};
 
 		struct BatchRay
 		{
@@ -345,7 +392,7 @@ namespace physx
 					const bool isIntersect = intersect(minBox, maxBox, minRay, maxRay)
 						&& intersect(secondAxis, minSecondAxis, maxSecondAxis)
 						&& intersect(thirdAxis, minThirdAxis, maxThirdAxis);
-
+					printMinMax(minV, maxV, isIntersect);
 					if (!isIntersect)
 					{
 						filteredRays.pushBack(rays[i]);
