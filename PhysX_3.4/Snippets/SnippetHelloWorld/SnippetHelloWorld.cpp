@@ -377,7 +377,7 @@ static void testBatchSweep(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 		queryFilterData.flags |= PxQueryFlag::eANY_HIT;
 	}
 
-	const PxU32 Idx = 106345;
+	const PxU32 Idx = 98966;
 	PxSweep* debugRay = rays.begin() + Idx;
 
 	//SweepHitArray hit;
@@ -405,9 +405,9 @@ static void testBatchSweep(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 
 static void testBatchSweep(const PxVec3* origin, PxU32 numOrigin, const PxVec3& dir, PxReal dist)
 {
-	//testBatchSweep(origin, numOrigin, dir, dist, true, true);
-	//testBatchSweep(origin, numOrigin, dir, dist, true, false);
-	//testBatchSweep(origin, numOrigin, dir, dist, false, true);
+	testBatchSweep(origin, numOrigin, dir, dist, true, true);
+	testBatchSweep(origin, numOrigin, dir, dist, true, false);
+	testBatchSweep(origin, numOrigin, dir, dist, false, true);
 	testBatchSweep(origin, numOrigin, dir, dist, false, false);
 }
 
@@ -476,9 +476,9 @@ void initPhysics(bool interactive)
 	testBatchSweep(origins.data(), origins.size(), dirs[2], distances[0]);
 	for (PxU32 i = 0; i < distances.size(); i++)
 	{
-		for (PxU32 j = 0; j < origins.size(); j++)
+		for (PxU32 j = 0; j < dirs.size(); j++)
 		{
-			// testBatchQuery(origins.data(), origins.size(), dirs[j], distances[i]);
+			testBatchQuery(origins.data(), origins.size(), dirs[j], distances[i]);
 			testBatchSweep(origins.data(), origins.size(), dirs[j], distances[i]);
 		}
 	}
