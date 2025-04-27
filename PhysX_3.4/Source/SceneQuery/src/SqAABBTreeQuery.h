@@ -443,8 +443,8 @@ namespace physx
 					if (doBoxTest)
 					{
 						const PxBounds3* objectBounds = sharedParams.boxes + poolIndex;
-						const Vec4V minV = V4LoadU(&objectBounds->minimum.x);
-						const Vec4V maxV = V4LoadU(&objectBounds->maximum.x);
+						const Vec3V minV = V3LoadU(&objectBounds->minimum.x);
+						const Vec3V maxV = V3LoadU(&objectBounds->maximum.x);
 
 						filteredRays = test.check<tInflate, Direction>(minV, maxV);
 					}
@@ -478,9 +478,9 @@ namespace physx
 
 			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, BatchRay& batchRay, const Node* node)
 			{
-				Vec3V minV, maxV;
+				Vec4V minV, maxV;
 				node->getAABBMinMaxV(&minV, &maxV);
-				const SqRayPtrArray filteredRays = batchRay.check<tInflate, Direction>(minV, maxV);
+				const SqRayPtrArray filteredRays = batchRay.check<tInflate, Direction>(Vec3V_From_Vec4V(minV), Vec3V_From_Vec4V(maxV));
 				if (batchRay.hasRay())
 				{
 					if(!node->isLeaf())
