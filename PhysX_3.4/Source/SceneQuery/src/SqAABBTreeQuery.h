@@ -55,7 +55,7 @@ PX_FORCE_INLINE std::ostream& operator <<(std::ostream& os, const physx::Vec3V& 
 
 PX_FORCE_INLINE void printMinMax(const physx::Vec3V& minV, const physx::Vec3V& maxV, bool bResult)
 {
-	std::cerr << minV << '\t' << maxV << '\t' << bResult << std::endl;
+	// std::cerr << minV << '\t' << maxV << '\t' << bResult << std::endl;
 }
 
 PX_FORCE_INLINE void printCenterExtend2(const physx::Vec3V& c2, const physx::Vec3V& e2, bool bResult)
@@ -64,7 +64,7 @@ PX_FORCE_INLINE void printCenterExtend2(const physx::Vec3V& c2, const physx::Vec
 	const physx::FloatV halfV = physx::FLoad(half);
 
 	const physx::Vec4V extents_ = physx::V4Scale(e2, halfV);
-	const physx::Vec4V center_ = physx::V4Scale(e2, halfV);
+	const physx::Vec4V center_ = physx::V4Scale(c2, halfV);
 	printMinMax(physx::V4Sub(center_, extents_), physx::V4Add(center_, extents_), bResult);
 }
 
@@ -257,8 +257,12 @@ namespace physx
 
 							if (b0 && b1)	// if both intersect, push the one with the further center on the stack for later
 							{
+#if SQ_AABB_DEBUG_BATCH_QUERY
+								const PxU32 bit = 1;
+#else
 								// & 1 because FAllGrtr behavior differs across platforms
 								const PxU32 bit = FAllGrtr(V3Dot(V3Sub(c1, c0), test.mDir), FZero()) & 1;
+#endif
 								stack[stackIndex++] = children + bit;
 								node = children + (1 - bit);
 								if (stackIndex == stack.capacity())

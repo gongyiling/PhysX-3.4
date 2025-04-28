@@ -722,6 +722,229 @@ PX_INLINE void swap(Array<T, Alloc>& x, Array<T, Alloc>& y)
 	x.swap(y);
 }
 
+
+template <typename T, uint32_t N>
+class FixedArray
+{
+public:
+
+	typedef T* Iterator;
+	typedef const T* ConstIterator;
+
+	FixedArray()
+		:mSize(0)
+	{
+
+	}
+
+	FixedArray(const FixedArray& other)
+		:mSize(0)
+	{
+		copy(other);
+	}
+
+	~FixedArray()
+	{
+		destroy(data(), data() + mSize);
+	}
+
+	PX_FORCE_INLINE FixedArray& operator=(const FixedArray& rhs)
+	{
+		if (&rhs == this)
+			return *this;
+
+		clear();
+		copy(data(), data() + rhs.mSize, rhs.data());
+		mSize = rhs.mSize;
+		return *this;
+	}
+
+	PX_FORCE_INLINE const T& operator[](uint32_t i) const
+	{
+		PX_ASSERT(i < mSize);
+		return data()[i];
+	}
+
+	PX_FORCE_INLINE T& operator[](uint32_t i)
+	{
+		PX_ASSERT(i < mSize);
+		return data()[i];
+	}
+
+	PX_FORCE_INLINE ConstIterator begin() const
+	{
+		return data();
+	}
+
+	PX_FORCE_INLINE Iterator begin()
+	{
+		return data();
+	}
+
+	PX_FORCE_INLINE ConstIterator end() const
+	{
+		return data() + mSize;
+	}
+
+	PX_FORCE_INLINE Iterator end()
+	{
+		return data() + mSize;
+	}
+
+	PX_FORCE_INLINE uint32_t size() const
+	{
+		return mSize;
+	}
+
+	PX_INLINE void clear()
+	{
+		destroy(data(), data() + mSize);
+		mSize = 0;
+	}
+
+	PX_FORCE_INLINE bool empty() const
+	{
+		return mSize == 0;
+	}
+
+	PX_FORCE_INLINE T& pushBack(const T& a)
+	{
+		PX_ASSERT(mSize  < N);
+		PX_PLACEMENT_NEW(reinterpret_cast<void*>(data() + mSize), T)(a);
+
+		return data()[mSize++];
+	}
+
+	/////////////////////////////////////////////////////////////////////////
+	/*!
+	Returns the element at the end of the array. Only legal if the array is non-empty.
+	*/
+	/////////////////////////////////////////////////////////////////////////
+	PX_INLINE T popBack()
+	{
+		PX_ASSERT(mSize);
+		T t = data()[mSize - 1];
+
+		destroy(data()[--mSize]);
+
+		return t;
+	}
+
+	/////////////////////////////////////////////////////////////////////////
+	/*!
+	Construct one element at the end of the array. Operation is O(1).
+	*/
+	/////////////////////////////////////////////////////////////////////////
+	PX_INLINE T& insert()
+	{
+		PX_ASSERT(mSize < N);
+		T* ptr = data() + mSize++;
+		new (ptr) T; // not 'T()' because PODs should not get default-initialized.
+		return *ptr;
+	}
+
+	PX_INLINE void remove(uint32_t i)
+	{
+		PX_ASSERT(i < mSize);
+
+		T* it = data() + i;
+		destroy(*it);
+		while (++i < mSize)
+		{
+			new (it) T(data()[i]);
+			++it;
+			destroy(*it);
+		}
+		--mSize;
+	}
+
+	PX_INLINE void removeAtSwap(uint32_t i)
+	{
+		shdfnd::swap(data()[i], data()[mSize - 1]);
+		destroy(data()[mSize - 1]);
+		--mSize;
+	}
+
+	PX_NOINLINE void resize(const uint32_t size, const T& a = T())
+	{
+		create(data() + mSize, data() + size, a);
+		destroy(data() + size, data() + mSize);
+		mSize = size;
+	}
+
+	PX_NOINLINE void resizeUninitialized(const uint32_t size)
+	{
+		PX_ASSERT(size <= N);
+		mSize = size;
+	}
+
+	PX_INLINE void assign(const T* first, const T* last)
+	{
+		resizeUninitialized(uint32_t(last - first));
+		copy(begin(), end(), first);
+	}
+
+private:
+
+	static PX_INLINE void create(T* first, T* last, const T& a)
+	{
+		for (; first < last; ++first)
+			::new (first) T(a);
+	}
+
+	static PX_INLINE void copy(T* first, T* last, const T* src)
+	{
+		if (last <= first)
+			return;
+
+		for (; first < last; ++first, ++src)
+			::new (first) T(*src);
+	}
+
+	static PX_INLINE void destroy(T* first, T* last)
+	{
+		if (!std::is_trivially_destructible<T>::value)
+		{
+			for (; first < last; ++first)
+				first->~T();
+		}
+	}
+
+	static PX_INLINE void destroy(T& first)
+	{
+		if (!std::is_trivially_destructible<T>::value)
+		{
+			first.~T();
+		}
+	}
+
+	void copy(const FixedArray& other)
+	{
+		if (!other.empty())
+		{
+			mSize = other.mSize;
+			copy(data(), data() + mSize, other.begin());
+		}
+		else
+		{
+			mSize = 0;
+		}
+	}
+	T* data()
+	{
+		return reinterpret_cast<T*>(mData);
+	}
+
+	const T* data() const
+	{
+		return reinterpret_cast<const T*>(mData);
+	}
+
+private:
+	alignas(alignof(T)) uint8_t mData[sizeof(T) * N];
+	uint32_t mSize;
+};
+
 } // namespace shdfnd
 } // namespace physx
 

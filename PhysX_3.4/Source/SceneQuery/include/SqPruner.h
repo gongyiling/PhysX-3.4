@@ -140,9 +140,9 @@ struct SqRay
 	bool canExit = false;
 };
 
-using SqRayArray = Ps::InlineArray<SqRay, PREFERED_MAX_RAYCAST_BATCH_SIZE>;
+using SqRayArray = Ps::FixedArray<SqRay, PREFERED_MAX_RAYCAST_BATCH_SIZE>;
 
-using SqRayPtrArray = Ps::InlineArray<SqRay*, PREFERED_MAX_RAYCAST_BATCH_SIZE>;
+using SqRayPtrArray = Ps::FixedArray<SqRay*, PREFERED_MAX_RAYCAST_BATCH_SIZE>;
 
 class Pruner : public Ps::UserAllocated
 {

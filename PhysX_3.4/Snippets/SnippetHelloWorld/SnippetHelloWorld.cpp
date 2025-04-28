@@ -195,7 +195,7 @@ static void checkCallback(RaycastCallback& a, RaycastCallback& b, bool anyHit)
 {
 	if (a.block.actor)
 	{
-		std::cerr << a.block.actor->getName() << std::endl;
+		//std::cerr << a.block.actor->getName() << std::endl;
 	}
 	PX_ASSERT(a.hasBlock == b.hasBlock)
 	if (a.hasBlock)
@@ -254,7 +254,7 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 		queryFilterData.flags |= PxQueryFlag::eANY_HIT;
 	}
 
-	const PxU32 Idx = 106225;
+	const PxU32 Idx = 102625;
 	PxRay* debugRay = rays.begin() + Idx;
 
 	//gScene->batchRaycast(debugRay, debugRay + 1, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
@@ -263,7 +263,12 @@ static void testBatchQuery(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 	//RaycastCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
 	//gScene->raycast(origin[Idx], dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 	//
-	gScene->batchRaycast(rays.begin(), rays.end(), dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+
+	for (PxU32 i = 0; i < rays.size(); i += PREFERED_MAX_RAYCAST_BATCH_SIZE)
+	{
+		PxU32 num = PxMin(i + PREFERED_MAX_RAYCAST_BATCH_SIZE, rays.size());
+		gScene->batchRaycast(rays.begin() + i, rays.begin() + num, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+	}
 
 	for (PxU32 i = 0; i < numOrigin; i++)
 	{
@@ -377,17 +382,20 @@ static void testBatchSweep(const PxVec3* origin, PxU32 numOrigin, const PxVec3& 
 		queryFilterData.flags |= PxQueryFlag::eANY_HIT;
 	}
 
-	const PxU32 Idx = 98966;
+	const PxU32 Idx = 1920;
 	PxSweep* debugRay = rays.begin() + Idx;
 
 	//SweepHitArray hit;
 	//SweepCallback callback((block ? nullptr : hit.hits), (block ? 0 : 128));
 	//gScene->sweep(geometry, debugRay->pose, dir, dist, callback, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 
-	//gScene->batchSweep(debugRay, debugRay + 1, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+	//gScene->batchSweep(debugRay, debugRay + 8, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
 
-
-	gScene->batchSweep(rays.begin(), rays.end(), dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+	for (PxU32 i = 0; i < rays.size(); i += PREFERED_MAX_RAYCAST_BATCH_SIZE)
+	{
+		PxU32 num = PxMin(i + PREFERED_MAX_RAYCAST_BATCH_SIZE, rays.size());
+		gScene->batchSweep(rays.begin() + i, rays.begin() + num, dir, PxHitFlags(PxHitFlag::eDEFAULT), queryFilterData);
+	}
 
 	for (PxU32 i = 0; i < numOrigin; i++)
 	{
@@ -473,7 +481,7 @@ void initPhysics(bool interactive)
 		, PxVec3(-1, 0, 0)
 	};
 
-	testBatchSweep(origins.data(), origins.size(), dirs[2], distances[0]);
+	// testBatchSweep(origins.data(), origins.size(), dirs[0], distances[1]);
 	for (PxU32 i = 0; i < distances.size(); i++)
 	{
 		for (PxU32 j = 0; j < dirs.size(); j++)
