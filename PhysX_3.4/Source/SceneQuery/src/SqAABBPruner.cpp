@@ -367,32 +367,32 @@ SqRayPtrArray AABBPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3& 
 		{
 		case SRD_PosX:
 		{
-			rayArray = AABBTreeBatchRaycast<false, SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_NegX:
 		{
-			rayArray = AABBTreeBatchRaycast<false, SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_PosY:
 		{
-			rayArray = AABBTreeBatchRaycast<false, SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_NegY:
 		{
-			rayArray = AABBTreeBatchRaycast<false, SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_PosZ:
 		{
-			rayArray = AABBTreeBatchRaycast<false, SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_NegZ:
 		{
-			rayArray = AABBTreeBatchRaycast<false, SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		}
@@ -432,32 +432,32 @@ SqRayPtrArray AABBPruner::batchSweep(const SqRayPtrArray& rays, const PxVec3& un
 		{
 		case SRD_PosX:
 		{
-			rayArray = AABBTreeBatchRaycast<true, SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_NegX:
 		{
-			rayArray = AABBTreeBatchRaycast<true, SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_PosY:
 		{
-			rayArray = AABBTreeBatchRaycast<true, SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_NegY:
 		{
-			rayArray = AABBTreeBatchRaycast<true, SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_PosZ:
 		{
-			rayArray = AABBTreeBatchRaycast<true, SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		case SRD_NegZ:
 		{
-			rayArray = AABBTreeBatchRaycast<true, SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			rayArray = AABBTreeBatchRaycast<SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
 			break;
 		}
 		}

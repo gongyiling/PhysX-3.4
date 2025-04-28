@@ -327,7 +327,8 @@ namespace physx
 
 				const uint32_t oldSize = rays.size();
 				rays.resize(rays.size() + inRays.size());
-				for (uint32_t i = 0; i < inRays.size(); i++)
+				const uint32_t rayNum = inRays.size();
+				for (uint32_t i = 0; i < rayNum; i++)
 				{
 					rays[i + oldSize] = inRays[i];
 				}
@@ -336,7 +337,8 @@ namespace physx
 			bool filter()
 			{
 				SqRayPtrArray newRays;
-				for (uint32_t i = 0; i < rays.size(); i++)
+				const uint32_t rayNum = rays.size();
+				for (uint32_t i = 0; i < rayNum; i++)
 				{
 					if (!rays[i]->canExit)
 					{
@@ -367,17 +369,18 @@ namespace physx
 			}
 		};
 
-		template <bool tInflate, SqRayDirection Direction, typename Tree, typename Node> // use inflate=true for sweeps, inflate=false for raycasts
+		template <SqRayDirection Direction, typename Tree, typename Node> // use inflate=true for sweeps, inflate=false for raycasts
 		class AABBTreeBatchRaycast
 		{
 		public:
 
 			struct BatchRaycastSharedParams
 			{
-				BatchRaycastSharedParams(const PrunerPayload* inObjects, const PxBounds3* inBoxes, const Tree& inTree)
+				BatchRaycastSharedParams(const PrunerPayload* inObjects, const PxBounds3* inBoxes, const Tree& inTree, BatchRay& inBatchRay)
 				: objects(inObjects)
 				, boxes(inBoxes)
 				, tree(inTree)
+				, batchRay(inBatchRay)
 				{
 					
 				}
@@ -385,14 +388,16 @@ namespace physx
 				const PrunerPayload* objects;
 				const PxBounds3* boxes;
 				const Tree& tree;
+				BatchRay& batchRay;
 			};
 
-			static PX_FORCE_INLINE void doLeafTest(const BatchRaycastSharedParams& sharedParams, BatchRay& test, const Node* node)
+			static PX_FORCE_INLINE void doLeafTest(const BatchRaycastSharedParams& sharedParams, const Node* node)
 			{
 				PxU32 nbPrims = node->getNbPrimitives();
 				const bool doBoxTest = nbPrims > 1;
 				const PxU32* prims = node->getPrimitives(sharedParams.tree.getIndices());
 				SqRayPtrArray filteredRays;
+				BatchRay& test = sharedParams.batchRay;
 				while (nbPrims--)
 				{
 					const PxU32* prunableIndex = prims;
@@ -409,7 +414,8 @@ namespace physx
 					}
 
 					bool hasExit = false;
-					for (uint32_t i = 0; i < test.rays.size(); i++)
+					const uint32_t rayNum = test.rays.size();
+					for (uint32_t i = 0; i < rayNum; i++)
 					{
 						SqRay* ray = test.rays[i];
 						if (!ray->pcb->invoke(ray->md, sharedParams.objects[poolIndex]))
@@ -419,7 +425,7 @@ namespace physx
 						}
 						else if (ray->md < ray->oldMaxDist)
 						{
-							ray->setDistance(ray->md);
+							ray->setDistance(ray->md, Direction);
 						}
 					}
 
@@ -435,27 +441,71 @@ namespace physx
 				}
 			}
 
-			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, BatchRay& batchRay, const Node* node)
+			static void getAABBMinMaxV(Vec3V& minV, Vec3V& maxV, const Node* node)
 			{
-				Vec4V minV, maxV;
-				node->getAABBMinMaxV(&minV, &maxV);
-				const SqRayPtrArray filteredRays = batchRay.check(Vec3V_From_Vec4V(minV), Vec3V_From_Vec4V(maxV));
-				if (batchRay.hasRay())
+				Vec4V minV4, maxV4;
+				node->getAABBMinMaxV(&minV4, &maxV4);
+				minV = Vec3V_From_Vec4V(minV4);
+				maxV = Vec3V_From_Vec4V(maxV4);
+			}
+
+			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, const Vec3V& minV, const Vec3V& maxV, const Node* node)
+			{
+				const SqRayPtrArray filteredRays = sharedParams.batchRay.check(minV, maxV);
+				if (sharedParams.batchRay.hasRay())
 				{
 					if(!node->isLeaf())
 					{
 						const Node* const nodeBase = sharedParams.tree.getNodes();
 						const Node* children = node->getPos(nodeBase);
-						doBatchRaycast(sharedParams, batchRay, &children[0]);
-						doBatchRaycast(sharedParams, batchRay, &children[1]);
+
+						Vec3V minCV[2], maxCV[2];
+						getAABBMinMaxV(minCV[0], maxCV[0], &children[0]);
+
+						getAABBMinMaxV(minCV[1], maxCV[1], &children[1]);
+
+						const uint32_t rayNum = sharedParams.batchRay.rays.size();
+						PxU32 bits = 0;
+						for (uint32_t i = 0; i < rayNum; i++)
+						{
+							const SqRay& ray = *sharedParams.batchRay.rays[i];
+							const Vec3V S = V3Sub(minCV[1], minCV[0]);
+							switch (Direction)
+							{
+							case SqRayDirection::SRD_PosX:
+								bits += FAllGrtr(V3GetX(S), FZero());
+								break;
+							case SqRayDirection::SRD_NegX:
+								bits += FAllGrtr(FZero(), V3GetX(S));
+								break;
+							case SqRayDirection::SRD_PosY:
+								bits += FAllGrtr(V3GetY(S), FZero());
+								break;
+							case SqRayDirection::SRD_NegY:
+								bits += FAllGrtr(FZero(), V3GetY(S));
+								break;
+							case SqRayDirection::SRD_PosZ:
+								bits += FAllGrtr(V3GetZ(S), FZero());
+								break;
+							case SqRayDirection::SRD_NegZ:
+								bits += FAllGrtr(FZero(), V3GetZ(S));
+								break;
+							}
+						}
+						const PxU32 bit1 = bits * 2 >= rayNum;
+						const PxU32 bit0 = 1 - bit1;
+
+						// if child1 is far from child0 in the direction of ray, go child0 first.
+						doBatchRaycast(sharedParams, minCV[bit0], maxCV[bit0], &children[bit0]);
+						doBatchRaycast(sharedParams, minCV[bit1], maxCV[bit1], &children[bit1]);
 					}
 					else
 					{
-						batchRay.cacheMaxDist();
-						doLeafTest(sharedParams, batchRay, node);
+						sharedParams.batchRay.cacheMaxDist();
+						doLeafTest(sharedParams, node);
 					}
 				}
-				batchRay.restore(filteredRays);
+				sharedParams.batchRay.restore(filteredRays);
 			}
 
 			SqRayPtrArray operator()(
@@ -466,8 +516,12 @@ namespace physx
 				BatchRay batchRay;
 				batchRay.rays = rays;
 				const Node* const nodeBase = tree.getNodes();
-				BatchRaycastSharedParams sharedParams(objects, boxes, tree);
-				doBatchRaycast(sharedParams, batchRay, nodeBase);
+				BatchRaycastSharedParams sharedParams(objects, boxes, tree, batchRay);
+
+				Vec3V minV, maxV;
+				getAABBMinMaxV(minV, maxV, nodeBase);
+				doBatchRaycast(sharedParams, minV, maxV, nodeBase);
+
 				return batchRay.rays;
 			}
 		};

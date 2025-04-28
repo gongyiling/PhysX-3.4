@@ -116,30 +116,53 @@ PX_FORCE_INLINE SqRayDirection toSqRayDirection(const PxVec3& dir)
 	return SRD_NegZ;
 }
 
+PX_FORCE_INLINE PxVec3 toVec3(SqRayDirection direction)
+{
+	switch (direction)
+	{
+	case SqRayDirection::SRD_PosX:
+		return PxVec3(1, 0, 0);
+	case SqRayDirection::SRD_NegX:
+		return PxVec3(-1, 0, 0);
+	case SqRayDirection::SRD_PosY:
+		return PxVec3(0, 1, 0);
+	case SqRayDirection::SRD_NegY:
+		return PxVec3(0, -1, 0);
+	case SqRayDirection::SRD_PosZ:
+		return PxVec3(0, 0, 1);
+	case SqRayDirection::SRD_NegZ:
+		return PxVec3(0, 0, -1);
+	}
+	return PxVec3(1, 0, 0);
+}
+
 struct SqRay
 {
 	SqRay(const PxRay* r, const PxVec3& dir, PrunerCallback* p)
 		: pcb(p)
 	{
 		origin = shdfnd::aos::V3LoadU(r->origin);
-		direction = shdfnd::aos::V3LoadU(dir);
 		inflation = shdfnd::aos::FZero();
-		setDistance(r->distance);
+		setDistance(r->distance, shdfnd::aos::V3LoadU(dir));
 	}
 
 	SqRay(const PxVec3& o, const PxVec3& i, const PxVec3& dir, PxReal d, PrunerCallback* p)
 		: pcb(p)
 	{
 		origin = shdfnd::aos::V3LoadU(o);
-		direction = shdfnd::aos::V3LoadU(dir);
 		inflation = shdfnd::aos::V3LoadU(i);
-		setDistance(d);
+		setDistance(d, shdfnd::aos::V3LoadU(dir));
 	}
 
-	void setDistance(PxReal d)
+	void setDistance(PxReal d, SqRayDirection Direction)
+	{
+		setDistance(d, getDirection(Direction));
+	}
+
+	void setDistance(PxReal d, const shdfnd::aos::Vec3V& dir)
 	{
 		maxDist = d;
-		const shdfnd::aos::Vec3V ext = shdfnd::aos::V3ScaleAdd(direction, shdfnd::aos::FLoad(maxDist), origin);
+		const shdfnd::aos::Vec3V ext = shdfnd::aos::V3ScaleAdd(dir, shdfnd::aos::FLoad(maxDist), origin);
 		minV = shdfnd::aos::V3Min(origin, ext);
 		maxV = shdfnd::aos::V3Max(origin, ext);
 		minV = shdfnd::aos::V3Sub(minV, inflation);
@@ -148,12 +171,18 @@ struct SqRay
 
 	PX_FORCE_INLINE PxVec3 getOrigin() const
 	{
-		PX_ALIGN(16) PxVec3 V;
+		PX_ALIGN(16, PxVec3 V);
 		shdfnd::aos::V3StoreA(origin, V);
 		return V;
 	}
+
+	static shdfnd::aos::Vec3V getDirection(SqRayDirection direction)
+	{
+		const PxVec3 d = toVec3(direction);
+		return shdfnd::aos::V3LoadU(d);
+	}
+
 	shdfnd::aos::Vec3V origin;
-	shdfnd::aos::Vec3V direction;
 	shdfnd::aos::Vec3V inflation;
 	shdfnd::aos::Vec3V minV;
 	shdfnd::aos::Vec3V maxV;
