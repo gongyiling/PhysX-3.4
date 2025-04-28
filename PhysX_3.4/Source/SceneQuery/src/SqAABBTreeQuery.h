@@ -463,38 +463,34 @@ namespace physx
 						getAABBMinMaxV(minCV[0], maxCV[0], &children[0]);
 
 						getAABBMinMaxV(minCV[1], maxCV[1], &children[1]);
-
-						const uint32_t rayNum = sharedParams.batchRay.rays.size();
-						PxU32 bits = 0;
-						for (uint32_t i = 0; i < rayNum; i++)
+#if SQ_AABB_DEBUG_BATCH_QUERY
+						PxU32 bit1 = 1;
+#else
+						PxU32 bit1 = 0;
+						const Vec3V S = V3Sub(minCV[1], minCV[0]);
+						switch (Direction)
 						{
-							const SqRay& ray = *sharedParams.batchRay.rays[i];
-							const Vec3V S = V3Sub(minCV[1], minCV[0]);
-							switch (Direction)
-							{
-							case SqRayDirection::SRD_PosX:
-								bits += FAllGrtr(V3GetX(S), FZero());
-								break;
-							case SqRayDirection::SRD_NegX:
-								bits += FAllGrtr(FZero(), V3GetX(S));
-								break;
-							case SqRayDirection::SRD_PosY:
-								bits += FAllGrtr(V3GetY(S), FZero());
-								break;
-							case SqRayDirection::SRD_NegY:
-								bits += FAllGrtr(FZero(), V3GetY(S));
-								break;
-							case SqRayDirection::SRD_PosZ:
-								bits += FAllGrtr(V3GetZ(S), FZero());
-								break;
-							case SqRayDirection::SRD_NegZ:
-								bits += FAllGrtr(FZero(), V3GetZ(S));
-								break;
-							}
+						case SqRayDirection::SRD_PosX:
+							bit1 = FAllGrtr(V3GetX(S), FZero());
+							break;
+						case SqRayDirection::SRD_NegX:
+							bit1 = FAllGrtr(FZero(), V3GetX(S));
+							break;
+						case SqRayDirection::SRD_PosY:
+							bit1 = FAllGrtr(V3GetY(S), FZero());
+							break;
+						case SqRayDirection::SRD_NegY:
+							bit1 = FAllGrtr(FZero(), V3GetY(S));
+							break;
+						case SqRayDirection::SRD_PosZ:
+							bit1 = FAllGrtr(V3GetZ(S), FZero());
+							break;
+						case SqRayDirection::SRD_NegZ:
+							bit1 = FAllGrtr(FZero(), V3GetZ(S));
+							break;
 						}
-						const PxU32 bit1 = bits * 2 >= rayNum;
+#endif
 						const PxU32 bit0 = 1 - bit1;
-
 						// if child1 is far from child0 in the direction of ray, go child0 first.
 						doBatchRaycast(sharedParams, minCV[bit0], maxCV[bit0], &children[bit0]);
 						doBatchRaycast(sharedParams, minCV[bit1], maxCV[bit1], &children[bit1]);
