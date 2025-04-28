@@ -898,7 +898,7 @@ bool NpSceneQueries::batchRaycast(
 
 		MultiQueryInput* input = new (&inputs[i]) MultiQueryInput(r->origin, unitDir, r->distance);
 		MultiQueryCallback<PxRaycastHit>* pcb = new (&pcbs[i]) MultiQueryCallback<PxRaycastHit>(*this, *input, anyHit, *r->hitCall, hitFlags, filterData, filterCall, r->distance, nullptr);
-		SqRay* ray = new (&rays[i]) SqRay(r, pcb);
+		SqRay* ray = new (&rays[i]) SqRay(r, unitDir, pcb);
 		raysPtr[i] = ray;
 	}
 
@@ -990,7 +990,7 @@ bool NpSceneQueries::batchSweep(const PxSweep* sweepStart, const PxSweep* sweepE
 		pcb->mQueryShapeBoundsValid = true;
 		pcb->mShapeData = sd;
 
-		SqRay* ray = new (&rays[i]) SqRay(pcb->mQueryShapeBounds.getCenter(), pcb->mQueryShapeBounds.getExtents(), pcb->mShrunkDistance, pcb);
+		SqRay* ray = new (&rays[i]) SqRay(pcb->mQueryShapeBounds.getCenter(), pcb->mQueryShapeBounds.getExtents(), unitDir, pcb->mShrunkDistance, pcb);
 		raysPtr[i] = ray;
 	}
 

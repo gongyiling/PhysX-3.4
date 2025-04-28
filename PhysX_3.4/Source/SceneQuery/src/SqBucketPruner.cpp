@@ -2285,7 +2285,7 @@ SqRayPtrArray BucketPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3
 	for (PxU32 i = 0; i < rays.size(); i++)
 	{
 		SqRay& ray = *rays[i];
-		const PxAgain again = mCore.raycast(ray.origin, unitDir, ray.maxDist, *ray.pcb);
+		const PxAgain again = mCore.raycast(ray.getOrigin(), unitDir, ray.maxDist, *ray.pcb);
 		if (again)
 		{
 			rayArray.pushBack(&ray);

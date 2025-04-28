@@ -38,6 +38,7 @@
 #include "GuSphere.h"
 #include "GuBox.h"
 #include "GuCapsule.h"
+#include "PsVecMath.h"
 
 namespace physx
 {	
@@ -117,23 +118,46 @@ PX_FORCE_INLINE SqRayDirection toSqRayDirection(const PxVec3& dir)
 
 struct SqRay
 {
-	SqRay(const PxRay* r, PrunerCallback* p)
+	SqRay(const PxRay* r, const PxVec3& dir, PrunerCallback* p)
 		: pcb(p)
-		, origin(r->origin)
-		, maxDist(r->distance)
-	{}
-
-	SqRay(const PxVec3& o, const PxVec3& i, PxReal d, PrunerCallback* p)
-		: pcb(p)
-		, origin(o)
-		, inflation(i)
-		, maxDist(d)
 	{
+		origin = shdfnd::aos::V3LoadU(r->origin);
+		direction = shdfnd::aos::V3LoadU(dir);
+		inflation = shdfnd::aos::FZero();
+		setDistance(r->distance);
 	}
 
+	SqRay(const PxVec3& o, const PxVec3& i, const PxVec3& dir, PxReal d, PrunerCallback* p)
+		: pcb(p)
+	{
+		origin = shdfnd::aos::V3LoadU(o);
+		direction = shdfnd::aos::V3LoadU(dir);
+		inflation = shdfnd::aos::V3LoadU(i);
+		setDistance(d);
+	}
+
+	void setDistance(PxReal d)
+	{
+		maxDist = d;
+		const shdfnd::aos::Vec3V ext = shdfnd::aos::V3ScaleAdd(direction, shdfnd::aos::FLoad(maxDist), origin);
+		minV = shdfnd::aos::V3Min(origin, ext);
+		maxV = shdfnd::aos::V3Max(origin, ext);
+		minV = shdfnd::aos::V3Sub(minV, inflation);
+		maxV = shdfnd::aos::V3Add(maxV, inflation);
+	}
+
+	PX_FORCE_INLINE PxVec3 getOrigin() const
+	{
+		PX_ALIGN(16) PxVec3 V;
+		shdfnd::aos::V3StoreA(origin, V);
+		return V;
+	}
+	shdfnd::aos::Vec3V origin;
+	shdfnd::aos::Vec3V direction;
+	shdfnd::aos::Vec3V inflation;
+	shdfnd::aos::Vec3V minV;
+	shdfnd::aos::Vec3V maxV;
 	PrunerCallback* pcb;
-	PxVec3 origin;
-	PxVec3 inflation;
 	PxReal maxDist = 0;
 	PxReal oldMaxDist = 0;
 	PxReal md = 0;

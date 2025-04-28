@@ -296,18 +296,6 @@ namespace physx
 		struct BatchRay
 		{
 			SqRayPtrArray rays;
-
-			PX_FORCE_INLINE static bool intersect(PxReal x1Min, PxReal x1Max, PxReal x2Min, PxReal x2Max)
-			{
-				return !(x1Max < x2Min || x2Max < x1Min);
-			}
-
-			PX_FORCE_INLINE static bool intersect(PxReal x1, PxReal x2Min, PxReal x2Max)
-			{
-				return x1 >= x2Min && x1 <= x2Max;
-			}
-
-			template<bool TInflate, SqRayDirection Direction>
 			PX_FORCE_INLINE SqRayPtrArray check(const Vec3V minV, const Vec3V maxV)
 			{
 				SqRayPtrArray filteredRays;
@@ -315,89 +303,9 @@ namespace physx
 				{
 					SqRay& ray = *rays[i];
 					PX_ASSERT(!ray.canExit);
-
-					Vec3U eMinV;
-					eMinV.v = TInflate ? V3Sub(minV, V3LoadU(ray.inflation)) : minV;
-					Vec3U eMaxV;
-					eMaxV.v = TInflate ? V3Add(maxV, V3LoadU(ray.inflation)) : maxV;
-
-					const PxVec3& o = ray.origin;
-					PxReal minBox, maxBox, minRay, maxRay;
-					PxReal secondAxis, minSecondAxis, maxSecondAxis;
-					PxReal thirdAxis, minThirdAxis, maxThirdAxis;
-
-					if (Direction == SRD_PosX || Direction == SRD_NegX)
-					{
-						minBox = eMinV.a[0];
-						maxBox = eMaxV.a[0];
-						if (Direction == SRD_PosX)
-						{
-							minRay = o.x;
-							maxRay = o.x + ray.maxDist;
-						}
-						else
-						{
-							minRay = o.x - ray.maxDist;
-							maxRay = o.x;
-						}
-						secondAxis = o.y;
-						minSecondAxis = eMinV.a[1];
-						maxSecondAxis = eMaxV.a[1];
-
-						thirdAxis = o.z;
-						minThirdAxis = eMinV.a[2];
-						maxThirdAxis = eMaxV.a[2];
-					}
-					else if (Direction == SRD_PosY || Direction == SRD_NegY)
-					{
-						minBox = eMinV.a[1];
-						maxBox = eMaxV.a[1];
-						if (Direction == SRD_PosY)
-						{
-							minRay = o.y;
-							maxRay = o.y + ray.maxDist;
-						}
-						else
-						{
-							minRay = o.y - ray.maxDist;
-							maxRay = o.y;
-						}
-						secondAxis = o.x;
-						minSecondAxis = eMinV.a[0];
-						maxSecondAxis = eMaxV.a[0];
-
-						thirdAxis = o.z;
-						minThirdAxis = eMinV.a[2];
-						maxThirdAxis = eMaxV.a[2];
-					}
-					else
-					{
-						minBox = eMinV.a[2];
-						maxBox = eMaxV.a[2];
-						if (Direction == SRD_PosZ)
-						{
-							minRay = o.z;
-							maxRay = o.z + ray.maxDist;
-						}
-						else
-						{
-							minRay = o.z - ray.maxDist;
-							maxRay = o.z;
-						}
-						secondAxis = o.x;
-						minSecondAxis = eMinV.a[0];
-						maxSecondAxis = eMaxV.a[0];
-
-						thirdAxis = o.y;
-						minThirdAxis = eMinV.a[1];
-						maxThirdAxis = eMaxV.a[1];
-					}
-
-					const bool isIntersect = intersect(minBox, maxBox, minRay, maxRay)
-						&& intersect(secondAxis, minSecondAxis, maxSecondAxis)
-						&& intersect(thirdAxis, minThirdAxis, maxThirdAxis);
-					printMinMax(minV, maxV, isIntersect);
-					if (!isIntersect)
+					const PxU32 b = BAllEqTTTT(BAnd(V3IsGrtrOrEq(ray.maxV, minV), V3IsGrtrOrEq(maxV, ray.minV)));
+					printMinMax(minV, maxV, b);
+					if (!b)
 					{
 						filteredRays.pushBack(rays[i]);
 						rays.removeAtSwap(i);
@@ -497,7 +405,7 @@ namespace physx
 						const Vec3V minV = V3LoadU(&objectBounds->minimum.x);
 						const Vec3V maxV = V3LoadU(&objectBounds->maximum.x);
 
-						filteredRays = test.check<tInflate, Direction>(minV, maxV);
+						filteredRays = test.check(minV, maxV);
 					}
 
 					bool hasExit = false;
@@ -511,7 +419,7 @@ namespace physx
 						}
 						else if (ray->md < ray->oldMaxDist)
 						{
-							ray->maxDist = ray->md;
+							ray->setDistance(ray->md);
 						}
 					}
 
@@ -531,7 +439,7 @@ namespace physx
 			{
 				Vec4V minV, maxV;
 				node->getAABBMinMaxV(&minV, &maxV);
-				const SqRayPtrArray filteredRays = batchRay.check<tInflate, Direction>(Vec3V_From_Vec4V(minV), Vec3V_From_Vec4V(maxV));
+				const SqRayPtrArray filteredRays = batchRay.check(Vec3V_From_Vec4V(minV), Vec3V_From_Vec4V(maxV));
 				if (batchRay.hasRay())
 				{
 					if(!node->isLeaf())
