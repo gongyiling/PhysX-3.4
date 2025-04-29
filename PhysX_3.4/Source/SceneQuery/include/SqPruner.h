@@ -190,12 +190,29 @@ struct SqRay
 	PxReal maxDist = 0;
 	PxReal oldMaxDist = 0;
 	PxReal md = 0;
-	bool canExit = false;
 };
+
+using SqRayMask = uint32_t;
 
 using SqRayArray = Ps::FixedArray<SqRay, PREFERED_MAX_RAYCAST_BATCH_SIZE>;
 
 using SqRayPtrArray = Ps::FixedArray<SqRay*, PREFERED_MAX_RAYCAST_BATCH_SIZE>;
+
+struct SqBatchRay
+{
+	SqRayArray rays;
+	SqRayMask mask = 0;
+
+	PX_FORCE_INLINE bool isEmpty() const
+	{
+		return (1 << rays.size()) - 1 == mask;
+	}
+
+	PX_FORCE_INLINE bool isMasked(uint32_t i) const
+	{
+		return mask & (1 << i);
+	}
+};
 
 class Pruner : public Ps::UserAllocated
 {
@@ -280,8 +297,8 @@ public:
 	virtual	PxAgain						overlap(const Gu::ShapeData& queryVolume, PrunerCallback&) const = 0;
 	virtual	PxAgain						sweep(const Gu::ShapeData& queryVolume, const PxVec3& unitDir, PxReal& inOutDistance, PrunerCallback&) const = 0;
 
-	virtual	SqRayPtrArray				batchRaycast(const SqRayPtrArray& rays, const PxVec3& unitDir) const = 0;
-	virtual	SqRayPtrArray				batchSweep(const SqRayPtrArray& rays, const PxVec3& unitDir) const = 0;
+	virtual	void						batchRaycast(SqBatchRay& sqBatchRay, const PxVec3& unitDir) const = 0;
+	virtual	void						batchSweep(SqBatchRay& sqBatchRay, const PxVec3& unitDir) const = 0;
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/**
 	 *	Retrieve the object data associated with the handle

@@ -355,10 +355,9 @@ PxAgain AABBPruner::raycast(const PxVec3& origin, const PxVec3& unitDir, PxReal&
 	return again;
 }
 
-SqRayPtrArray AABBPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3& unitDir) const
+void AABBPruner::batchRaycast(SqBatchRay& sqBatchRay, const PxVec3& unitDir) const
 {
 	PX_ASSERT(!mUncommittedChanges);
-	SqRayPtrArray rayArray;
 	const SqRayDirection direction = toSqRayDirection(unitDir);
 	if (mAABBTree)
 	{
@@ -367,62 +366,56 @@ SqRayPtrArray AABBPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3& 
 		{
 		case SRD_PosX:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_NegX:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_PosY:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_NegY:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_PosZ:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_NegZ:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		}
 	}
 
-	if (!rayArray.empty() && mIncrementalRebuild && mBucketPruner.getNbObjects())
+	if (!sqBatchRay.isEmpty() && mIncrementalRebuild && mBucketPruner.getNbObjects())
 	{
-		for (PxU32 i = 0; i < rayArray.size();)
+		for (PxU32 i = 0; i < sqBatchRay.rays.size(); i++)
 		{
-			SqRay& ray = *rayArray[i];
+			if (sqBatchRay.isMasked(i))
+			{
+				continue;
+			}
+			SqRay& ray = sqBatchRay.rays[i];
 			const PxAgain again = mBucketPruner.raycast(ray.getOrigin(), unitDir, ray.maxDist, *ray.pcb);
-			if (!again)
-			{
-				rayArray.removeAtSwap(i);
-			}
-			else
-			{
-				i++;
-			}
+			sqBatchRay.mask |= (1 - again) << i;
 		}
 	}
-
-	return rayArray;
 }
 
-SqRayPtrArray AABBPruner::batchSweep(const SqRayPtrArray& rays, const PxVec3& unitDir) const
+void AABBPruner::batchSweep(SqBatchRay& sqBatchRay, const PxVec3& unitDir) const
 {
 	PX_ASSERT(!mUncommittedChanges);
 
-	SqRayPtrArray rayArray;
 	const SqRayDirection direction = toSqRayDirection(unitDir);
 
 	if (mAABBTree)
@@ -432,56 +425,51 @@ SqRayPtrArray AABBPruner::batchSweep(const SqRayPtrArray& rays, const PxVec3& un
 		{
 		case SRD_PosX:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_PosX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_NegX:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_NegX, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_PosY:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_PosY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_NegY:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_NegY, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_PosZ:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_PosZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		case SRD_NegZ:
 		{
-			rayArray = AABBTreeBatchRaycast<SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, rays);
+			AABBTreeBatchRaycast<SRD_NegZ, AABBTree, AABBTreeRuntimeNode>()(mPool.getObjects(), mPool.getCurrentWorldBoxes(), *mAABBTree, sqBatchRay);
 			break;
 		}
 		}
 	}
 
-	if (!rayArray.empty() && mIncrementalRebuild && mBucketPruner.getNbObjects())
+	if (!sqBatchRay.isEmpty() && mIncrementalRebuild && mBucketPruner.getNbObjects())
 	{
-		for (PxU32 i = 0; i < rayArray.size();)
+		for (PxU32 i = 0; i < sqBatchRay.rays.size(); i++)
 		{
-			SqRay& ray = *rayArray[i];
-			
+			if (sqBatchRay.isMasked(i))
+			{
+				continue;
+			}
+
+			SqRay& ray = sqBatchRay.rays[i];
 			const PxAgain again = mBucketPruner.sweep(*ray.pcb->getShapeData(), unitDir, ray.maxDist, *ray.pcb);
-			if (!again)
-			{
-				rayArray.removeAtSwap(i);
-			}
-			else
-			{
-				i++;
-			}
+			sqBatchRay.mask |= (1 - again) << i;
 		}
 	}
-
-	return rayArray;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -295,78 +295,56 @@ namespace physx
 
 		struct BatchRay
 		{
-			SqRayPtrArray rays;
-			PX_FORCE_INLINE SqRayPtrArray check(const Vec3V minV, const Vec3V maxV)
+			BatchRay(SqBatchRay& inRays)
+				:sqBatchRay(inRays)
 			{
-				SqRayPtrArray filteredRays;
-				for (uint32_t i = 0; i < rays.size();)
-				{
-					SqRay& ray = *rays[i];
-					PX_ASSERT(!ray.canExit);
-					const PxU32 b = BAllEqTTTT(BAnd(V3IsGrtrOrEq(ray.maxV, minV), V3IsGrtrOrEq(maxV, ray.minV)));
-					printMinMax(minV, maxV, b);
-					if (!b)
-					{
-						filteredRays.pushBack(rays[i]);
-						rays.removeAtSwap(i);
-					}
-					else
-					{
-						i++;
-					}
-				}
-				return filteredRays;
+				
 			}
 
-			void restore(const SqRayPtrArray& inRays)
+			PX_FORCE_INLINE SqRayMask check(const Vec3V minV, const Vec3V maxV)
 			{
-				if (inRays.empty())
-				{
-					return;
-				}
-
-				const uint32_t oldSize = rays.size();
-				rays.resize(rays.size() + inRays.size());
-				const uint32_t rayNum = inRays.size();
+				SqRayMask thisMask = 0;
+				const uint32_t rayNum = sqBatchRay.rays.size();
 				for (uint32_t i = 0; i < rayNum; i++)
 				{
-					rays[i + oldSize] = inRays[i];
-				}
-			}
-
-			bool filter()
-			{
-				SqRayPtrArray newRays;
-				const uint32_t rayNum = rays.size();
-				for (uint32_t i = 0; i < rayNum; i++)
-				{
-					if (!rays[i]->canExit)
+					if (masked(i))
 					{
-						newRays.pushBack(rays[i]);
+						continue;
 					}
+					SqRay& ray = sqBatchRay.rays[i];
+					const PxU32 intersect = BAllEqTTTT(BAnd(V3IsGrtrOrEq(ray.maxV, minV), V3IsGrtrOrEq(maxV, ray.minV)));
+					thisMask |= ((1 - intersect) << i);
+					printMinMax(minV, maxV, intersect);
 				}
-				rays = newRays;
-				return hasRay();
+				sqBatchRay.mask |= thisMask;
+				return thisMask;
 			}
 
-			bool hasRay() const
+			PX_FORCE_INLINE bool masked(uint32_t i) const
 			{
-				return !rays.empty();
+				return sqBatchRay.isMasked(i);
+			}
+
+			PX_FORCE_INLINE void restore(SqRayMask thisMask) const
+			{
+				sqBatchRay.mask &= ~thisMask;
+			}
+
+			PX_FORCE_INLINE bool isEmpty() const
+			{
+				return sqBatchRay.isEmpty();
 			}
 
 			void cacheMaxDist()
 			{
-				for (uint32_t i = 0; i < rays.size(); i++)
+				const uint32_t rayNum = sqBatchRay.rays.size();
+				for (uint32_t i = 0; i < rayNum; i++)
 				{
-					SqRay* ray = rays[i];
-					ray->oldMaxDist = ray->md = ray->maxDist;
+					SqRay& ray = sqBatchRay.rays[i];
+					ray.oldMaxDist = ray.md = ray.maxDist;
 				}
 			}
-
-			void setCanExit(SqRay* ray)
-			{
-				ray->canExit = true;
-			}
+			SqBatchRay& sqBatchRay;
 		};
 
 		template <SqRayDirection Direction, typename Tree, typename Node> // use inflate=true for sweeps, inflate=false for raycasts
@@ -396,7 +374,6 @@ namespace physx
 				PxU32 nbPrims = node->getNbPrimitives();
 				const bool doBoxTest = nbPrims > 1;
 				const PxU32* prims = node->getPrimitives(sharedParams.tree.getIndices());
-				SqRayPtrArray filteredRays;
 				BatchRay& test = sharedParams.batchRay;
 				while (nbPrims--)
 				{
@@ -404,39 +381,38 @@ namespace physx
 					prims++;
 
 					const PoolIndex poolIndex = *prunableIndex;
+					SqRayMask mask = 0;
 					if (doBoxTest)
 					{
 						const PxBounds3* objectBounds = sharedParams.boxes + poolIndex;
 						const Vec3V minV = V3LoadU(&objectBounds->minimum.x);
 						const Vec3V maxV = V3LoadU(&objectBounds->maximum.x);
-
-						filteredRays = test.check(minV, maxV);
+						mask = test.check(minV, maxV);
 					}
 
-					bool hasExit = false;
-					const uint32_t rayNum = test.rays.size();
+					const uint32_t rayNum = test.sqBatchRay.rays.size();
 					for (uint32_t i = 0; i < rayNum; i++)
 					{
-						SqRay* ray = test.rays[i];
-						if (!ray->pcb->invoke(ray->md, sharedParams.objects[poolIndex]))
+						if (test.masked(i))
 						{
-							test.setCanExit(ray);
-							hasExit = true;
+							continue;
 						}
-						else if (ray->md < ray->oldMaxDist)
+						SqRay& ray = test.sqBatchRay.rays[i];
+						if (!ray.pcb->invoke(ray.md, sharedParams.objects[poolIndex]))
 						{
-							ray->setDistance(ray->md, Direction);
+							test.sqBatchRay.mask |= (1 << i);
+						}
+						else if (ray.md < ray.oldMaxDist)
+						{
+							ray.setDistance(ray.md, Direction);
 						}
 					}
 
-					test.restore(filteredRays);
+					test.restore(mask);
 
-					if (hasExit)
+					if (test.isEmpty())
 					{
-						if (!test.filter())
-						{
-							break;
-						}
+						break;
 					}
 				}
 			}
@@ -451,8 +427,8 @@ namespace physx
 
 			void doBatchRaycast(const BatchRaycastSharedParams& sharedParams, const Vec3V& minV, const Vec3V& maxV, const Node* node)
 			{
-				const SqRayPtrArray filteredRays = sharedParams.batchRay.check(minV, maxV);
-				if (sharedParams.batchRay.hasRay())
+				const SqRayMask mask = sharedParams.batchRay.check(minV, maxV);
+				if (!sharedParams.batchRay.isEmpty())
 				{
 					if(!node->isLeaf())
 					{
@@ -501,24 +477,22 @@ namespace physx
 						doLeafTest(sharedParams, node);
 					}
 				}
-				sharedParams.batchRay.restore(filteredRays);
+				sharedParams.batchRay.restore(mask);
 			}
 
-			SqRayPtrArray operator()(
+			void operator()(
 				const PrunerPayload* objects, const PxBounds3* boxes, const Tree& tree,
-				const SqRayPtrArray& rays)
+				SqBatchRay& sqBatchRay)
 			{
 				using namespace Cm;
-				BatchRay batchRay;
-				batchRay.rays = rays;
+
+				BatchRay batchRay(sqBatchRay);
 				const Node* const nodeBase = tree.getNodes();
 				BatchRaycastSharedParams sharedParams(objects, boxes, tree, batchRay);
 
 				Vec3V minV, maxV;
 				getAABBMinMaxV(minV, maxV, nodeBase);
 				doBatchRaycast(sharedParams, minV, maxV, nodeBase);
-
-				return batchRay.rays;
 			}
 		};
 	}

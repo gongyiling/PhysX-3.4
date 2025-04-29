@@ -880,11 +880,8 @@ bool NpSceneQueries::batchRaycast(
 	Ps::FixedArray<MultiQueryInput, PREFERED_MAX_RAYCAST_BATCH_SIZE> inputs;
 	inputs.resizeUninitialized(rayNum);
 
-	SqRayArray rays;
-	rays.resizeUninitialized(rayNum);
-
-	SqRayPtrArray raysPtr;
-	raysPtr.resizeUninitialized(rayNum);
+	SqBatchRay sqBatchRay;
+	sqBatchRay.rays.resizeUninitialized(rayNum);
 
 	Ps::FixedArray<IssueCallbacksOnReturn<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> crbs;
 	crbs.resizeUninitialized(rayNum);
@@ -898,14 +895,13 @@ bool NpSceneQueries::batchRaycast(
 
 		MultiQueryInput* input = new (&inputs[i]) MultiQueryInput(r->origin, unitDir, r->distance);
 		MultiQueryCallback<PxRaycastHit>* pcb = new (&pcbs[i]) MultiQueryCallback<PxRaycastHit>(*this, *input, anyHit, *r->hitCall, hitFlags, filterData, filterCall, r->distance, nullptr);
-		SqRay* ray = new (&rays[i]) SqRay(r, unitDir, pcb);
-		raysPtr[i] = ray;
+		SqRay* ray = new (&sqBatchRay.rays[i]) SqRay(r, unitDir, pcb);
 	}
 
 	if (doStatics)
 	{
-		raysPtr = staticPruner->batchRaycast(raysPtr, unitDir);
-		if (raysPtr.empty())
+		staticPruner->batchRaycast(sqBatchRay, unitDir);
+		if (sqBatchRay.isEmpty())
 		{
 			for (PxU32 i = 0; i < rayNum; i++)
 			{
@@ -917,12 +913,12 @@ bool NpSceneQueries::batchRaycast(
 
 	if (doDynamics)
 	{
-		dynamicPruner->batchRaycast(raysPtr, unitDir);
+		dynamicPruner->batchRaycast(sqBatchRay, unitDir);
 	}
 
 	for (PxU32 i = 0; i < rayNum; i++)
 	{
-		crbs[i].again = !rays[i].canExit;
+		crbs[i].again = !sqBatchRay.isMasked(i);
 	}
 
 	return true;
@@ -960,11 +956,8 @@ bool NpSceneQueries::batchSweep(const PxSweep* sweepStart, const PxSweep* sweepE
 	Ps::FixedArray<MultiQueryInput, PREFERED_MAX_RAYCAST_BATCH_SIZE> inputs;
 	inputs.resizeUninitialized(rayNum);
 
-	SqRayArray rays;
-	rays.resizeUninitialized(rayNum);
-
-	SqRayPtrArray raysPtr;
-	raysPtr.resizeUninitialized(rayNum);
+	SqBatchRay sqBatchRay;
+	sqBatchRay.rays.resizeUninitialized(rayNum);
 
 	Ps::FixedArray<IssueCallbacksOnReturn<PxRaycastHit>, PREFERED_MAX_RAYCAST_BATCH_SIZE> crbs;
 	crbs.resizeUninitialized(rayNum);
@@ -990,14 +983,13 @@ bool NpSceneQueries::batchSweep(const PxSweep* sweepStart, const PxSweep* sweepE
 		pcb->mQueryShapeBoundsValid = true;
 		pcb->mShapeData = sd;
 
-		SqRay* ray = new (&rays[i]) SqRay(pcb->mQueryShapeBounds.getCenter(), pcb->mQueryShapeBounds.getExtents(), unitDir, pcb->mShrunkDistance, pcb);
-		raysPtr[i] = ray;
+		SqRay* ray = new (&sqBatchRay.rays[i]) SqRay(pcb->mQueryShapeBounds.getCenter(), pcb->mQueryShapeBounds.getExtents(), unitDir, pcb->mShrunkDistance, pcb);
 	}
 
 	if (doStatics)
 	{
-		raysPtr = staticPruner->batchSweep(raysPtr, unitDir);
-		if (raysPtr.empty())
+		staticPruner->batchSweep(sqBatchRay, unitDir);
+		if (sqBatchRay.isEmpty())
 		{
 			for (PxU32 i = 0; i < rayNum; i++)
 			{
@@ -1009,12 +1001,12 @@ bool NpSceneQueries::batchSweep(const PxSweep* sweepStart, const PxSweep* sweepE
 
 	if (doDynamics)
 	{
-		dynamicPruner->batchSweep(raysPtr, unitDir);
+		dynamicPruner->batchSweep(sqBatchRay, unitDir);
 	}
 
 	for (PxU32 i = 0; i < rayNum; i++)
 	{
-		crbs[i].again = !rays[i].canExit;
+		crbs[i].again = !sqBatchRay.isMasked(i);
 	}
 
 	return true;

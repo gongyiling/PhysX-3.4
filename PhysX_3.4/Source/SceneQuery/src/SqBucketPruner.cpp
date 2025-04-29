@@ -2275,42 +2275,39 @@ PxAgain BucketPruner::raycast(const PxVec3& origin, const PxVec3& unitDir, PxRea
 	return mCore.raycast(origin, unitDir, inOutDistance, pcb);
 }
 
-SqRayPtrArray BucketPruner::batchRaycast(const SqRayPtrArray& rays, const PxVec3& unitDir) const
+void BucketPruner::batchRaycast(SqBatchRay& sqBatchRay, const PxVec3& unitDir) const
 {
 	PX_ASSERT(!mCore.mDirty);
 	if (mCore.mDirty)
-		return rays; // it may crash otherwise
+		return; // it may crash otherwise
 
-	SqRayPtrArray rayArray;
-	for (PxU32 i = 0; i < rays.size(); i++)
+	for (PxU32 i = 0; i < sqBatchRay.rays.size(); i++)
 	{
-		SqRay& ray = *rays[i];
-		const PxAgain again = mCore.raycast(ray.getOrigin(), unitDir, ray.maxDist, *ray.pcb);
-		if (again)
+		if (sqBatchRay.isMasked(i))
 		{
-			rayArray.pushBack(&ray);
+			continue;
 		}
+		SqRay& ray = sqBatchRay.rays[i];
+		const PxAgain again = mCore.raycast(ray.getOrigin(), unitDir, ray.maxDist, *ray.pcb);
+		sqBatchRay.mask |= (1 - again) << i;
 	}
-	return rayArray;
 }
 
-SqRayPtrArray BucketPruner::batchSweep(const SqRayPtrArray& rays, const PxVec3& unitDir) const
+void BucketPruner::batchSweep(SqBatchRay& sqBatchRay, const PxVec3& unitDir) const
 {
 	PX_ASSERT(!mCore.mDirty);
 	if (mCore.mDirty)
-		return rays; // it may crash otherwise
-
-	SqRayPtrArray rayArray;
-	for (PxU32 i = 0; i < rays.size(); i++)
+		return; // it may crash otherwise
+	for (PxU32 i = 0; i < sqBatchRay.rays.size(); i++)
 	{
-		SqRay& ray = *rays[i];
-		const PxAgain again = mCore.sweep(*ray.pcb->getShapeData(), unitDir, ray.maxDist, *ray.pcb);
-		if (again)
+		if (sqBatchRay.isMasked(i))
 		{
-			rayArray.pushBack(&ray);
+			continue;
 		}
+		SqRay& ray = sqBatchRay.rays[i];
+		const PxAgain again = mCore.sweep(*ray.pcb->getShapeData(), unitDir, ray.maxDist, *ray.pcb);
+		sqBatchRay.mask |= (1 - again) << i;
 	}
-	return rayArray;
 }
 
 void BucketPruner::visualize(Cm::RenderOutput& out, PxU32 color) const
