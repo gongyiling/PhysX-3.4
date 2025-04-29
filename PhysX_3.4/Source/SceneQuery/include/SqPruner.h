@@ -205,12 +205,12 @@ struct SqBatchRay
 
 	PX_FORCE_INLINE bool isEmpty() const
 	{
-		return (1 << rays.size()) - 1 == mask;
+		return static_cast<SqRayMask>((1 << rays.size()) - 1) == mask;
 	}
 
 	PX_FORCE_INLINE bool isMasked(uint32_t i) const
 	{
-		return mask & (1 << i);
+		return !!(mask & (1 << i));
 	}
 };
 

@@ -369,6 +369,11 @@ namespace physx
 				BatchRay& batchRay;
 			};
 
+			static Vec3V LoadV3(const PxVec3& v)
+			{
+				return Vec3V_From_Vec4V(V4LoadU(&v.x));
+			}
+
 			static PX_FORCE_INLINE void doLeafTest(const BatchRaycastSharedParams& sharedParams, const Node* node)
 			{
 				PxU32 nbPrims = node->getNbPrimitives();
@@ -385,8 +390,8 @@ namespace physx
 					if (doBoxTest)
 					{
 						const PxBounds3* objectBounds = sharedParams.boxes + poolIndex;
-						const Vec3V minV = V3LoadU(&objectBounds->minimum.x);
-						const Vec3V maxV = V3LoadU(&objectBounds->maximum.x);
+						const Vec3V minV = LoadV3(objectBounds->minimum);
+						const Vec3V maxV = LoadV3(objectBounds->maximum);
 						mask = test.check(minV, maxV);
 					}
 

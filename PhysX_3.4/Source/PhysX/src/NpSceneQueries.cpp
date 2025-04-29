@@ -895,7 +895,7 @@ bool NpSceneQueries::batchRaycast(
 
 		MultiQueryInput* input = new (&inputs[i]) MultiQueryInput(r->origin, unitDir, r->distance);
 		MultiQueryCallback<PxRaycastHit>* pcb = new (&pcbs[i]) MultiQueryCallback<PxRaycastHit>(*this, *input, anyHit, *r->hitCall, hitFlags, filterData, filterCall, r->distance, nullptr);
-		SqRay* ray = new (&sqBatchRay.rays[i]) SqRay(r, unitDir, pcb);
+		new (&sqBatchRay.rays[i]) SqRay(r, unitDir, pcb);
 	}
 
 	if (doStatics)
